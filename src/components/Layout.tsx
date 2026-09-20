@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock } from 'lucide-react';
 import type { Role } from '@/types';
 import type { Store } from '@/lib/store';
+import { PasswordModal } from '@/components/PasswordModal';
 
 export type AdminView = 'calendario' | 'estatisticas' | 'professores' | 'disciplinas' | 'turmas' | 'grade' | 'emails';
 
@@ -25,6 +26,18 @@ const ADMIN_NAV: { key: AdminView; label: string; icon: typeof Calendar }[] = [
 export function Layout({ store, adminView, setAdminView, children }: LayoutProps) {
   const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId } = store;
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+
+  function handleGestaoClick() {
+    if (role !== 'gestao') {
+      setPasswordOpen(true);
+    }
+  }
+
+  function handlePasswordSuccess() {
+    setPasswordOpen(false);
+    setRole('gestao');
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -60,7 +73,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
               )}
               <div className="flex items-center bg-slate-100 rounded-lg p-1">
                 <button
-                  onClick={() => setRole('gestao')}
+                  onClick={handleGestaoClick}
                   className={`px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                     role === 'gestao'
                       ? 'bg-white text-sky-700 shadow-sm'
@@ -124,6 +137,12 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
           HorárioRangel — Sistema de Gestão de Horários Escolares
         </div>
       </footer>
+
+      <PasswordModal
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        onSuccess={handlePasswordSuccess}
+      />
     </div>
   );
 }
