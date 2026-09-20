@@ -69,7 +69,6 @@ export function useStore() {
   const [role, setRole] = useState<Role>('gestao');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
 
-  // Sincronização inicial com o Supabase
   useEffect(() => {
     async function syncWithCloud() {
       try {
@@ -85,7 +84,7 @@ export function useStore() {
           setDb(prev => ({ ...prev, teachers: formattedTeachers }));
         }
       } catch (err) {
-        console.warn('Usando armazenamento local temporário.');
+        console.warn('Usando modo local offline.');
       }
     }
     syncWithCloud();
@@ -95,7 +94,6 @@ export function useStore() {
     saveDB(db);
   }, [db]);
 
-  // Teachers
   const addTeacher = useCallback((name: string, email: string, phone: string, color: string) => {
     const newId = uid();
     setDb((prev) => ({
@@ -122,7 +120,6 @@ export function useStore() {
     supabase.from('professores').delete().eq('id', id).then();
   }, []);
 
-  // Subjects
   const addSubject = useCallback((name: string, color: string) => {
     setDb((prev) => ({
       ...prev,
@@ -143,8 +140,6 @@ export function useStore() {
       subjects: prev.subjects.filter((s) => s.id !== id),
     }));
   }, []);
-
-  // Classes
   const addClass = useCallback((name: string, grade: string) => {
     setDb((prev) => ({
       ...prev,
@@ -167,7 +162,6 @@ export function useStore() {
     }));
   }, []);
 
-  // Grid
   const addGridSlot = useCallback(
     (weekday: Weekday, blockId: number, teacherId: string, subjectId: string, classId: string) => {
       const newId = uid();
@@ -199,7 +193,6 @@ export function useStore() {
     supabase.from('grade_horaria').delete().eq('id', id).then();
   }, []);
 
-  // Occurrences
   const checkCollisions = useCallback(
     (
       weekday: Weekday,
@@ -211,11 +204,12 @@ export function useStore() {
       const collisions: Collision[] = [];
 
       const teacherGridSlots = db.grid.filter(
-        (s) => s.weekday === weekday && s.blockId === blockId && s.teacherId === teacherId
+        (s) => s.weekday === weekday && s.blockId === blockId && s.teacherId === teacherId,
       );
       const teacherOtherClasses = teacherGridSlots.filter((s) => s.classId !== classId);
       if (teacherOtherClasses.length > 0) {
-        const otherClass = db.classes.find((c) => c.id === teacherOtherClasses[0].classId);
+        const firstMatch = teacherOtherClasses[0];
+        const otherClass = db.classes.find((c) => c.id === firstMatch.classId);
         collisions.push({
           type: 'teacher',
           message: `Professor já alocado na turma ${otherClass?.name ?? 'outra'} neste horário`,
@@ -223,11 +217,12 @@ export function useStore() {
       }
 
       const classGridSlots = db.grid.filter(
-        (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId
+        (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId,
       );
       const classOtherTeachers = classGridSlots.filter((s) => s.teacherId !== teacherId);
       if (classOtherTeachers.length > 0) {
-        const otherTeacher = db.teachers.find((t) => t.id === classOtherTeachers[0].teacherId);
+        const firstMatch = classOtherTeachers[0];
+        const otherTeacher = db.teachers.find((t) => t.id === firstMatch.teacherId);
         collisions.push({
           type: 'class',
           message: `Turma já possui aula com ${otherTeacher?.name ?? 'outro professor'} neste horário`,
@@ -239,12 +234,13 @@ export function useStore() {
           o.weekday === weekday &&
           o.blockId === blockId &&
           o.teacherId === teacherId &&
-          o.id !== excludeOccurrenceId
+          o.id !== excludeOccurrenceId,
       );
       if (teacherOcc.length > 0) {
+        const firstMatch = teacherOcc[0];
         collisions.push({
           type: 'teacher',
-          message: `Professor já possui ocorrência registrada neste horário (${teacherOcc[0].type})`,
+          message: `Professor já possui ocorrência registrada neste horário (${firstMatch.type})`,
         });
       }
 
@@ -253,7 +249,7 @@ export function useStore() {
           o.weekday === weekday &&
           o.blockId === blockId &&
           o.substituteTeacherId === teacherId &&
-          o.id !== excludeOccurrenceId
+          o.id !== excludeOccurrenceId,
       );
       if (subOcc.length > 0) {
         collisions.push({
@@ -328,3 +324,15 @@ export function useStore() {
     addSubject,
     updateSubject,
     deleteSubject,
+    addClass,
+    updateClass,
+    deleteClass,
+    addGridSlot,
+    updateGridSlot,
+    deleteGridSlot,
+    checkCollisions,
+    addOccurrence,
+    deleteOccurrence,
+    resetDB,
+  };
+}
