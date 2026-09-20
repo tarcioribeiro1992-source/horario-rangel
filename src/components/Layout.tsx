@@ -42,7 +42,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Bar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+      <header className="no-print bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo */}
@@ -132,7 +132,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
         {children}
       </main>
 
-      <footer className="border-t border-slate-200 bg-white py-4">
+      <footer className="no-print border-t border-slate-200 bg-white py-4">
         <div className="max-w-[1600px] mx-auto px-6 text-center text-xs text-slate-400">
           HorárioRangel — Sistema de Gestão de Horários Escolares
         </div>

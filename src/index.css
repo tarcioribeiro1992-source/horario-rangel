@@ -27,3 +27,128 @@
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
+
+/* ===== Print Rules ===== */
+
+@media print {
+  /* Force white background and black text */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  font-size: 11px;
+  -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide everything not meant for print */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Remove sticky positioning and shadows */
+  header,
+  footer {
+    position: static !important;
+    box-shadow: none !important;
+  }
+
+  /* Reset main content area for full-width printing */
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Remove overflow scroll so all content is visible */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  /* Weekly view: landscape orientation */
+  .print-landscape {
+    width: 100% !important;
+  }
+
+  .print-landscape > div {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Daily view: portrait orientation */
+  .print-portrait > div {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Print-only header */
+  .print\:block {
+    display: block !important;
+  }
+
+  /* Ensure grid cells have visible borders */
+  .print\:border-slate-300 {
+    border-color: #64748b !important;
+    border-width: 1px !important;
+  }
+
+  .print\:border-slate-500 {
+    border-color: #475569 !important;
+  }
+
+  .print\:border-slate-400 {
+    border-color: #94a3b8 !important;
+  }
+
+  .print\:bg-slate-100 {
+    background-color: #f1f5f9 !important;
+  }
+
+  .print\:bg-slate-200 {
+    background-color: #e2e8f0 !important;
+  }
+
+  .print\:bg-amber-100 {
+    background-color: #fef3c7 !important;
+  }
+
+  .print\:bg-white {
+    background-color: #ffffff !important;
+  }
+
+  .print\:text-black {
+    color: #000000 !important;
+  }
+
+  .print\:text-black\/60 {
+    color: rgba(0, 0, 0, 0.6) !important;
+  }
+
+  .print\:min-h-\[48px\] {
+    min-height: 48px !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:min-w-0 {
+    min-width: 0 !important;
+  }
+}
+
+/* Landscape orientation for weekly print */
+@page {
+  size: A4 landscape;
+  margin: 1.5cm;
+}
+
+.print-portrait {
+  /* Override to portrait when daily view is active */
+  page: portrait;
+}
+
+@page portrait {
+  size: A4 portrait;
+  margin: 2cm;
+}
