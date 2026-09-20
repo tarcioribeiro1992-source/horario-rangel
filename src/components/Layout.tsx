@@ -48,7 +48,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
             {/* Logo */}
             <div className="flex items-center gap-2.5 flex-shrink-0">
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center">
-                <GraduationCap className="w-5 h-5 text-white" />
+               <img src="/logo.png" alt="HorárioRangel" className="h-8 w-auto object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg font-bold text-slate-800 leading-none">HorárioRangel</h1>
