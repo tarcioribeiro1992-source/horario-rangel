@@ -5,6 +5,8 @@ import type { Weekday } from '@/types';
 import { TIME_BLOCKS, WEEKDAYS, formatBlockTime } from '@/lib/timeBlocks';
 import { OccurrenceModal } from '@/components/OccurrenceModal';
 import { useToast } from '@/components/Toast';
+import { buildWhatsAppMessage, buildWhatsAppURL } from '@/lib/whatsapp';
+import type { Occurrence } from '@/types';
 
 type ViewMode = 'semanal' | 'diaria';
 
@@ -51,11 +53,22 @@ export function CalendarView({ store }: { store: Store }) {
     setModalOpen(true);
   }
 
-  function onSaved(teacherName: string, type: string, email: string) {
+  function onSaved(occurrence: Occurrence, teacherName: string, type: string, email: string) {
+    const teacher = teachers.find((t) => t.id === occurrence.teacherId);
+    const schoolClass = classes.find((c) => c.id === occurrence.classId);
+    const substituteTeacher = teachers.find((t) => t.id === occurrence.substituteTeacherId);
+
+    let whatsappUrl: string | undefined;
+    if (teacher && teacher.phone) {
+      const message = buildWhatsAppMessage(occurrence, teacher, schoolClass, substituteTeacher);
+      whatsappUrl = buildWhatsAppURL(teacher.phone, message);
+    }
+
     showToast({
       title: 'Ocorrência registrada!',
       message: `${type} — ${teacherName}`,
       emailPreview: `E-mail enviado para ${email}`,
+      whatsappUrl,
     });
   }
 

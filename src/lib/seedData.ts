@@ -8,14 +8,14 @@ import type {
 } from '@/types';
 
 export const SEED_TEACHERS: Teacher[] = [
-  { id: 't1', name: 'Ana Carolina Souza', email: 'ana.souza@horariorangel.edu.br', color: '#0EA5E9' },
-  { id: 't2', name: 'Bruno Martins', email: 'bruno.martins@horariorangel.edu.br', color: '#10B981' },
-  { id: 't3', name: 'Carla Fernandes', email: 'carla.fernandes@horariorangel.edu.br', color: '#F59E0B' },
-  { id: 't4', name: 'Diego Ramos', email: 'diego.ramos@horariorangel.edu.br', color: '#EF4444' },
-  { id: 't5', name: 'Eduarda Lima', email: 'eduarda.lima@horariorangel.edu.br', color: '#8B5CF6' },
-  { id: 't6', name: 'Felipe Castro', email: 'felipe.castro@horariorangel.edu.br', color: '#EC4899' },
-  { id: 't7', name: 'Gabriela Nunes', email: 'gabriela.nunes@horariorangel.edu.br', color: '#14B8A6' },
-  { id: 't8', name: 'Henrique Alves', email: 'henrique.alves@horariorangel.edu.br', color: '#F97316' },
+  { id: 't1', name: 'Ana Carolina Souza', email: 'ana.souza@horariorangel.edu.br', phone: '5511987654321', color: '#0EA5E9' },
+  { id: 't2', name: 'Bruno Martins', email: 'bruno.martins@horariorangel.edu.br', phone: '5511987654322', color: '#10B981' },
+  { id: 't3', name: 'Carla Fernandes', email: 'carla.fernandes@horariorangel.edu.br', phone: '5511987654323', color: '#F59E0B' },
+  { id: 't4', name: 'Diego Ramos', email: 'diego.ramos@horariorangel.edu.br', phone: '5511987654324', color: '#EF4444' },
+  { id: 't5', name: 'Eduarda Lima', email: 'eduarda.lima@horariorangel.edu.br', phone: '5511987654325', color: '#8B5CF6' },
+  { id: 't6', name: 'Felipe Castro', email: 'felipe.castro@horariorangel.edu.br', phone: '5511987654326', color: '#EC4899' },
+  { id: 't7', name: 'Gabriela Nunes', email: 'gabriela.nunes@horariorangel.edu.br', phone: '5511987654327', color: '#14B8A6' },
+  { id: 't8', name: 'Henrique Alves', email: 'henrique.alves@horariorangel.edu.br', phone: '5511987654328', color: '#F97316' },
 ];
 
 export const SEED_SUBJECTS: Subject[] = [

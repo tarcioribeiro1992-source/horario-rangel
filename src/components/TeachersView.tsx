@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, X, Mail, User } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Mail, User, Phone } from 'lucide-react';
 import type { Store } from '@/lib/store';
 import type { Teacher } from '@/types';
 
@@ -11,12 +11,14 @@ export function TeachersView({ store }: { store: Store }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [color, setColor] = useState(COLORS[0]);
 
   function openAdd() {
     setEditing(null);
     setName('');
     setEmail('');
+    setPhone('');
     setColor(COLORS[Math.floor(Math.random() * COLORS.length)]);
     setShowForm(true);
   }
@@ -25,6 +27,7 @@ export function TeachersView({ store }: { store: Store }) {
     setEditing(t);
     setName(t.name);
     setEmail(t.email);
+    setPhone(t.phone);
     setColor(t.color);
     setShowForm(true);
   }
@@ -33,9 +36,9 @@ export function TeachersView({ store }: { store: Store }) {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
     if (editing) {
-      updateTeacher(editing.id, name, email, color);
+      updateTeacher(editing.id, name, email, phone, color);
     } else {
-      addTeacher(name, email, color);
+      addTeacher(name, email, phone, color);
     }
     setShowForm(false);
   }
@@ -76,6 +79,12 @@ export function TeachersView({ store }: { store: Store }) {
                   <Mail className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{t.email}</span>
                 </div>
+                {t.phone && (
+                  <div className="flex items-center gap-1 mt-0.5 text-xs text-slate-500">
+                    <Phone className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{t.phone}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1 mt-1.5">
                   <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
                     {getOccCount(t.id)} ocorrências
@@ -144,6 +153,24 @@ export function TeachersView({ store }: { store: Store }) {
                     className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                  Telefone/WhatsApp <span className="text-slate-300 font-normal">(opcional)</span>
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="5511987654321 (com DDI + DDD)"
+                    className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 pl-1">
+                  Informe o número com DDI (55) e DDD para receber avisos via WhatsApp
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1.5">Cor de Identificação</label>

@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
-import { CheckCircle2, X, Mail } from 'lucide-react';
+import { CheckCircle2, X, Mail, MessageCircle } from 'lucide-react';
 
 export interface Toast {
   id: string;
   title: string;
   message: string;
   emailPreview?: string;
+  whatsappUrl?: string;
 }
 
 interface ToastContextValue {
@@ -35,7 +36,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       setToasts((prev) => [...prev, { ...toast, id }]);
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 7000);
+      }, 10000);
     },
     [],
   );
@@ -60,9 +61,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 <p className="text-sm text-slate-600 mt-0.5">{t.message}</p>
                 {t.emailPreview && (
                   <div className="mt-2 flex items-center gap-1.5 text-xs text-sky-600 bg-sky-50 px-2 py-1.5 rounded-lg">
-                    <Mail className="w-3.5 h-3.5" />
+                    <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                     <span className="truncate">{t.emailPreview}</span>
                   </div>
+                )}
+                {t.whatsappUrl && (
+                  <a
+                    href={t.whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Avisar Professor
+                  </a>
                 )}
               </div>
               <button

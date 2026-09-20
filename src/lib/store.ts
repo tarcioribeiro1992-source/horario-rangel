@@ -70,17 +70,17 @@ export function useStore() {
   }, [db]);
 
   // Teachers
-  const addTeacher = useCallback((name: string, email: string, color: string) => {
+  const addTeacher = useCallback((name: string, email: string, phone: string, color: string) => {
     setDb((prev) => ({
       ...prev,
-      teachers: [...prev.teachers, { id: uid(), name, email, color }],
+      teachers: [...prev.teachers, { id: uid(), name, email, phone, color }],
     }));
   }, []);
 
-  const updateTeacher = useCallback((id: string, name: string, email: string, color: string) => {
+  const updateTeacher = useCallback((id: string, name: string, email: string, phone: string, color: string) => {
     setDb((prev) => ({
       ...prev,
-      teachers: prev.teachers.map((t) => (t.id === id ? { ...t, name, email, color } : t)),
+      teachers: prev.teachers.map((t) => (t.id === id ? { ...t, name, email, phone, color } : t)),
     }));
   }, []);
 

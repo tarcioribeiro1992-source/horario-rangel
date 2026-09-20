@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, AlertTriangle, CheckCircle2, Mail } from 'lucide-react';
 import type { Store } from '@/lib/store';
-import type { Weekday, OccurrenceType } from '@/types';
+import type { Weekday, OccurrenceType, Occurrence } from '@/types';
 import { WEEKDAYS, TEACHING_BLOCK_IDS, formatBlockTime } from '@/lib/timeBlocks';
 
 const OCCURRENCE_TYPES: OccurrenceType[] = [
@@ -17,7 +17,7 @@ interface Props {
   onClose: () => void;
   store: Store;
   preselect: { weekday: Weekday; blockId: number } | null;
-  onSaved: (teacherName: string, type: string, email: string) => void;
+  onSaved: (occurrence: Occurrence, teacherName: string, type: string, email: string) => void;
 }
 
 export function OccurrenceModal({ open, onClose, store, preselect, onSaved }: Props) {
@@ -77,7 +77,19 @@ export function OccurrenceModal({ open, onClose, store, preselect, onSaved }: Pr
       substituteTeacherId: substituteTeacherId || null,
     });
 
-    onSaved(teacher?.name ?? 'Professor', type, emailLog.to);
+    const occurrence: Occurrence = {
+      id: emailLog.occurrenceId,
+      weekday,
+      blockId,
+      teacherId,
+      classId,
+      type,
+      note,
+      substituteTeacherId: substituteTeacherId || null,
+      createdAt: new Date().toISOString(),
+    };
+
+    onSaved(occurrence, teacher?.name ?? 'Professor', type, emailLog.to);
     onClose();
   }
 
