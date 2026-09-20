@@ -1,16 +1,6 @@
-Perfeito! Ter o código original do arquivo é exatamente o que precisávamos para corrigir o erro da Vercel.
-O Bolt.new criou uma estrutura muito completa, cheia de funções de checagem de conflitos, envio simulado de logs de e-mail e tratamento de dados com tipos específicos (como Weekday e OccurrenceType).
-Reescrevi o arquivo mantendo 100% da estrutura visual, variáveis e funções originais que as suas telas esperam receber, mas injetei um mecanismo de sincronização inteligente em segundo plano para o Supabase. O aplicativo continuará funcionando normalmente e, toda vez que você fizer uma alteração (como cadastrar um professor), ele salvará localmente e enviará uma cópia instantânea para a nuvem.
-Siga este passo a passo para aplicar a correção final:
-------------------------------
-## Passo Único: Substituir o código no GitHub
-
-   1. Acesse o seu projeto no GitHub.
-   2. Vá até a pasta src/lib e clique no arquivo store.ts (ou useStore.ts).
-   3. No canto superior direito da página do código, clique no ícone do lápis ✏️ (Editar este arquivo).
-   4. Selecione todo o conteúdo atual do arquivo, apague e cole este código completo atualizado abaixo:
-
-import { useState, useEffect, useCallback } from 'react';import { supabase } from './supabase';import type {
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from './supabase';
+import type {
   Teacher,
   Subject,
   SchoolClass,
@@ -19,7 +9,8 @@ import { useState, useEffect, useCallback } from 'react';import { supabase } fro
   EmailLog,
   Role,
   Weekday,
-} from '@/types';import {
+} from '@/types';
+import {
   SEED_TEACHERS,
   SEED_SUBJECTS,
   SEED_CLASSES,
@@ -27,7 +18,9 @@ import { useState, useEffect, useCallback } from 'react';import { supabase } fro
   SEED_OCCURRENCES,
   SEED_EMAIL_LOGS,
 } from '@/lib/seedData';
+
 const STORAGE_KEY = 'horariorangel_db_v1';
+
 interface DB {
   teachers: Teacher[];
   subjects: Subject[];
@@ -36,6 +29,7 @@ interface DB {
   occurrences: Occurrence[];
   emailLogs: EmailLog[];
 }
+
 function loadDB(): DB {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -52,19 +46,24 @@ function loadDB(): DB {
     emailLogs: SEED_EMAIL_LOGS,
   };
 }
+
 function saveDB(db: DB) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
 }
+
 export interface Collision {
   type: 'teacher' | 'class';
   message: string;
 }
+
 function uid(): string {
   return Math.random().toString(36).slice(2, 11);
 }
+
 function buildEmailBody(occ: any, teacher: any, subTeacher: any, schoolClass: any) {
   return `Olá, ${teacher?.name || 'Professor'}.\nHouve uma alteração de horário marcada como: ${occ.type}.\nMotivo: ${occ.motivo || 'Não informado'}.\nPor favor, consulte o aplicativo HorárioRangel para mais informações.`;
 }
+
 export function useStore() {
   const [db, setDb] = useState<DB>(loadDB);
   const [role, setRole] = useState<Role>('gestao');
@@ -212,7 +211,7 @@ export function useStore() {
       const collisions: Collision[] = [];
 
       const teacherGridSlots = db.grid.filter(
-        (s) => s.weekday === weekday && s.blockId === blockId && s.teacherId === teacherId,
+        (s) => s.weekday === weekday && s.blockId === blockId && s.teacherId === teacherId
       );
       const teacherOtherClasses = teacherGridSlots.filter((s) => s.classId !== classId);
       if (teacherOtherClasses.length > 0) {
@@ -224,7 +223,7 @@ export function useStore() {
       }
 
       const classGridSlots = db.grid.filter(
-        (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId,
+        (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId
       );
       const classOtherTeachers = classGridSlots.filter((s) => s.teacherId !== teacherId);
       if (classOtherTeachers.length > 0) {
@@ -240,7 +239,7 @@ export function useStore() {
           o.weekday === weekday &&
           o.blockId === blockId &&
           o.teacherId === teacherId &&
-          o.id !== excludeOccurrenceId,
+          o.id !== excludeOccurrenceId
       );
       if (teacherOcc.length > 0) {
         collisions.push({
@@ -254,7 +253,7 @@ export function useStore() {
           o.weekday === weekday &&
           o.blockId === blockId &&
           o.substituteTeacherId === teacherId &&
-          o.id !== excludeOccurrenceId,
+          o.id !== excludeOccurrenceId
       );
       if (subOcc.length > 0) {
         collisions.push({
@@ -329,22 +328,3 @@ export function useStore() {
     addSubject,
     updateSubject,
     deleteSubject,
-
-addClass,
-updateClass,
-deleteClass,
-addGridSlot,
-updateGridSlot,
-deleteGridSlot,
-checkCollisions,
-addOccurrence,
-deleteOccurrence,
-resetDB,
-};
-}
-
-
-
-
-
-
