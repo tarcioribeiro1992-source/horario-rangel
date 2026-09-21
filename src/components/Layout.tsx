@@ -14,7 +14,7 @@ interface LayoutProps {
 }
 
 const ADMIN_NAV: { key: AdminView; label: string; icon: typeof Calendar }[] = [
-  { key: 'calendario', label: 'Calendário', icon: Calendar },
+  { key: 'calendario', label: 'Horário', icon: Calendar },
   { key: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { key: 'professores', label: 'Professores', icon: Users },
   { key: 'disciplinas', label: 'Disciplinas', icon: GraduationCap },
