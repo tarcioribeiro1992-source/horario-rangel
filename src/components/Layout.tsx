@@ -136,7 +136,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
 
       <footer className="no-print border-t border-slate-200 bg-white py-4">
         <div className="max-w-[1600px] mx-auto px-6 text-center text-xs text-slate-400">
-          Horário Rangel — Sistema de Gestão de Horários
+          Sistema de Gestão de Horários - Desenvolvido por Tárcio Ribeiro
         </div>
       </footer>
 
