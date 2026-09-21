@@ -69,20 +69,35 @@ export function useStore() {
   const [role, setRole] = useState<Role>('gestao');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
 
+  // Sincronização inicial completa com o Supabase
   useEffect(() => {
     async function syncWithCloud() {
       try {
-        const { data: cloudTeachers } = await supabase.from('professores').select('*');
-        if (cloudTeachers && cloudTeachers.length > 0) {
-          const formattedTeachers: Teacher[] = cloudTeachers.map((t: any) => ({
-            id: t.id,
-            name: t.nome,
-            email: t.email,
-            phone: t.telefone || '',
-            color: '#2563eb'
+        const [tRes, sRes, cRes] = await Promise.all([
+          supabase.from('professores').select('*'),
+          supabase.from('disciplinas').select('*'),
+          supabase.from('turmas').select('*')
+        ]);
+        
+        let updatedDb = { ...db };
+        
+        if (tRes.data && tRes.data.length > 0) {
+          updatedDb.teachers = tRes.data.map((t: any) => ({
+            id: t.id, name: t.nome, email: t.email, phone: t.telefone || '', color: '#2563eb'
           }));
-          setDb(prev => ({ ...prev, teachers: formattedTeachers }));
         }
+        if (sRes.data && sRes.data.length > 0) {
+          updatedDb.subjects = sRes.data.map((s: any) => ({
+            id: s.id, name: s.nome, color: s.cor || '#2563eb'
+          }));
+        }
+        if (cRes.data && cRes.data.length > 0) {
+          updatedDb.classes = cRes.data.map((c: any) => ({
+            id: c.id, name: c.nome, grade: c.ano_serie || ''
+          }));
+        }
+        
+        setDb(updatedDb);
       } catch (err) {
         console.warn('Usando modo local offline.');
       }
@@ -90,9 +105,6 @@ export function useStore() {
     syncWithCloud();
   }, []);
 
-  useEffect(() => {
-    saveDB(db);
-  }, [db]);
 
   const addTeacher = useCallback((name: string, email: string, phone: string, color: string) => {
     const newId = uid();
@@ -121,11 +133,14 @@ export function useStore() {
 
   }, []);
 
+    // Subjects (Disciplinas)
   const addSubject = useCallback((name: string, color: string) => {
+    const newId = uid();
     setDb((prev) => ({
       ...prev,
-      subjects: [...prev.subjects, { id: uid(), name, color }],
+      subjects: [...prev.subjects, { id: newId, name, color }],
     }));
+    supabase.from('disciplinas').insert([{ id: newId, nome: name, cor: color ]).then();
   }, []);
 
   const updateSubject = useCallback((id: string, name: string, color: string) => {
@@ -133,6 +148,7 @@ export function useStore() {
       ...prev,
       subjects: prev.subjects.map((s) => (s.id === id ? { ...s, name, color } : s)),
     }));
+    supabase.from('disciplinas').update({ nome: name, cor: color }).eq('id', id).then();
   }, []);
 
   const deleteSubject = useCallback((id: string) => {
@@ -140,12 +156,17 @@ export function useStore() {
       ...prev,
       subjects: prev.subjects.filter((s) => s.id !== id),
     }));
+    supabase.from('disciplinas').delete().eq('id', id).then();
   }, []);
+
+  // Classes (Turmas)
   const addClass = useCallback((name: string, grade: string) => {
+    const newId = uid();
     setDb((prev) => ({
       ...prev,
-      classes: [...prev.classes, { id: uid(), name, grade }],
+      classes: [...prev.classes, { id: newId, name, grade }],
     }));
+    supabase.from('turmas').insert([{ id: newId, nome: name, ano_serie: grade ]).then();
   }, []);
 
   const updateClass = useCallback((id: string, name: string, grade: string) => {
@@ -153,6 +174,7 @@ export function useStore() {
       ...prev,
       classes: prev.classes.map((c) => (c.id === id ? { ...c, name, grade } : c)),
     }));
+    supabase.from('turmas').update({ nome: name, ano_serie: grade }).eq('id', id).then();
   }, []);
 
   const deleteClass = useCallback((id: string) => {
@@ -161,6 +183,7 @@ export function useStore() {
       classes: prev.classes.filter((c) => c.id !== id),
       grid: prev.grid.filter((s) => s.classId !== id),
     }));
+    supabase.from('turmas').delete().eq('id', id).then();
   }, []);
 
   const addGridSlot = useCallback(
