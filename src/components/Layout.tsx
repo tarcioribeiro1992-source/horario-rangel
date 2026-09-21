@@ -52,8 +52,8 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
   </div>
 
               <div className="hidden sm:block">
-                <h1 className="text-lg font-bold text-slate-800 leading-none">HorárioRangel</h1>
-                <p className="text-xs text-slate-400 mt-0.5">Gestão de Horários Escolares</p>
+                <h1 className="text-lg font-bold text-slate-800 leading-none">Horário Rangel</h1>
+                <p className="text-xs text-slate-400 mt-0.5">Sistema de Gestão de Horários</p>
               </div>
             </div>
 
@@ -65,7 +65,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
                 onChange={(e) => setSelectedTeacherId(e.target.value)}
                 className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
               >
-                <option value="">👇 Escolha seu nome aqui</option>
+                <option value="">👇 Olá! Selecione seu nome aqui!</option>
                 {teachers.map((t) => (
                   <option key={t.id} value={t.id}>
                     {role === 'gestao' ? `Simular: ${t.name}` : t.name}
