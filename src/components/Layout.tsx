@@ -46,10 +46,11 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo */}
-            <div className="flex items-center gap-2.5 flex-shrink-0">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 to-teal-500 flex items-center justify-center">
-               <img src="/logo.png" alt="HorárioRangel" className="h-8 w-auto object-contain" />
-              </div>
+<div className="flex items-center gap-2.5 flex-shrink-0">
+  <div className="flex items-center justify-center">
+   <img src="/logo.png" alt="HorárioRangel" className="h-10 w-auto object-contain" />
+  </div>
+
               <div className="hidden sm:block">
                 <h1 className="text-lg font-bold text-slate-800 leading-none">HorárioRangel</h1>
                 <p className="text-xs text-slate-400 mt-0.5">Gestão de Horários Escolares</p>
