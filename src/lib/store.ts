@@ -133,14 +133,14 @@ export function useStore() {
 
   }, []);
 
-    // Subjects (Disciplinas)
+     // Subjects (Disciplinas)
   const addSubject = useCallback((name: string, color: string) => {
     const newId = uid();
     setDb((prev) => ({
       ...prev,
       subjects: [...prev.subjects, { id: newId, name, color }],
     }));
-    supabase.from('disciplinas').insert([{ id: newId, nome: name, cor: color ]).then();
+    supabase.from('disciplinas').insert([{ id: newId, nome: name, cor: color }]).then();
   }, []);
 
   const updateSubject = useCallback((id: string, name: string, color: string) => {
@@ -159,14 +159,14 @@ export function useStore() {
     supabase.from('disciplinas').delete().eq('id', id).then();
   }, []);
 
-  // Classes (Turmas)
+    // Classes (Turmas)
   const addClass = useCallback((name: string, grade: string) => {
     const newId = uid();
     setDb((prev) => ({
       ...prev,
       classes: [...prev.classes, { id: newId, name, grade }],
     }));
-    supabase.from('turmas').insert([{ id: newId, nome: name, ano_serie: grade ]).then();
+    supabase.from('turmas').insert([{ id: newId, nome: name, ano_serie: grade }]).then();
   }, []);
 
   const updateClass = useCallback((id: string, name: string, grade: string) => {
