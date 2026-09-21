@@ -56,21 +56,22 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
               </div>
             </div>
 
-            {/* Role Toggle */}
+            {/* Selector and Role Toggle */}
             <div className="flex items-center gap-3">
-              {role === 'gestao' && (
-                <select
-                  value={selectedTeacherId}
-                  onChange={(e) => setSelectedTeacherId(e.target.value)}
-                  className="hidden lg:block text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                >
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      Simular: {t.name}
-                    </option>
-                  ))}
-                </select>
-              )}
+              {/* Menu de Seleção visível para todos (Gestão e Professores) */}
+              <select
+                value={selectedTeacherId || ''}
+                onChange={(e) => setSelectedTeacherId(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
+              >
+                <option value="">👇 Escolha seu nome aqui</option>
+                {teachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {role === 'gestao' ? `Simular: ${t.name}` : t.name}
+                  </option>
+                ))}
+              </select>
+
               <div className="flex items-center bg-slate-100 rounded-lg p-1">
                 <button
                   onClick={handleGestaoClick}
