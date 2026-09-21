@@ -301,11 +301,14 @@ export function useStore() {
 
   const deleteOccurrence = useCallback((id: string) => {
     setDb((prev) => ({
+        const deleteOccurrence = useCallback((id: string) => {
+    setDb((prev) => ({
       ...prev,
       occurrences: prev.occurrences.filter((o) => o.id !== id),
     }));
     supabase.from('ocorrencias').delete().eq('id', id).then();
   }, []);
+
 
   const resetDB = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
