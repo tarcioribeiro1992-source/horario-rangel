@@ -66,7 +66,7 @@ function buildEmailBody(occ: any, teacher: any, subTeacher: any, schoolClass: an
 
 export function useStore() {
   const [db, setDb] = useState<DB>(loadDB);
-  const [role, setRole] = useState<Role>('gestao');
+  const [role, setRole] = useState<Role>('professor');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
 
   // Sincronização inicial completa com o Supabase
