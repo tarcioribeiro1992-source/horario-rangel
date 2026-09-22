@@ -69,7 +69,7 @@ export function useStore() {
   const [role, setRole] = useState<Role>('professor');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
 
-    // Sincronização inicial completa com o Supabase
+  // Sincronização inicial completa com o Supabase
   useEffect(() => {
     async function syncWithCloud() {
       try {
@@ -105,7 +105,7 @@ export function useStore() {
         }
         if (oRes.data && oRes.data.length > 0) {
           updatedDb.occurrences = oRes.data.map((o: any) => ({
-            id: o.id, date: o.data, blockId: Number(o.bloco_horario), type: o.tipo, teacherId: o.professor_id, motivo: o.motivo || ''
+            id: o.id, weekday: o.data, blockId: Number(o.bloco_horario), type: o.tipo, teacherId: o.professor_id, motivo: o.motivo || '', substituteTeacherId: '', date: o.data, createdAt: o.created_at
           }));
         }
         
@@ -117,6 +117,9 @@ export function useStore() {
     syncWithCloud();
   }, []);
 
+  useEffect(() => {
+    saveDB(db);
+  }, [db]);
 
   const addTeacher = useCallback((name: string, email: string, phone: string, color: string) => {
     const newId = uid();
@@ -124,7 +127,7 @@ export function useStore() {
       ...prev,
       teachers: [...prev.teachers, { id: newId, name, email, phone, color }],
     }));
-   supabase.from('professores').insert([{ id: newId, nome: name, email: email, telefone: phone }]).then();
+    supabase.from('professores').insert([{ id: newId, nome: name, email: email, telefone: phone }]).then();
   }, []);
 
   const updateTeacher = useCallback((id: string, name: string, email: string, phone: string, color: string) => {
@@ -132,7 +135,7 @@ export function useStore() {
       ...prev,
       teachers: prev.teachers.map((t) => (t.id === id ? { ...t, name, email, phone, color } : t)),
     }));
-    supabase.from('professores').update({ nome: name, email, telefone: phone }).eq('id', id).then();
+    supabase.from('professores').update({ nome: name, email: email, telefone: phone }).eq('id', id).then();
   }, []);
 
   const deleteTeacher = useCallback((id: string) => {
@@ -141,11 +144,9 @@ export function useStore() {
       teachers: prev.teachers.filter((t) => t.id !== id),
       grid: prev.grid.filter((s) => s.teacherId !== id),
     }));
-  supabase.from('professores').delete().eq('id', id).then();
-
+    supabase.from('professores').delete().eq('id', id).then();
   }, []);
 
-     // Subjects (Disciplinas)
   const addSubject = useCallback((name: string, color: string) => {
     const newId = uid();
     setDb((prev) => ({
@@ -170,8 +171,6 @@ export function useStore() {
     }));
     supabase.from('disciplinas').delete().eq('id', id).then();
   }, []);
-
-    // Classes (Turmas)
   const addClass = useCallback((name: string, grade: string) => {
     const newId = uid();
     setDb((prev) => ({
@@ -205,7 +204,7 @@ export function useStore() {
         ...prev,
         grid: [...prev.grid, { id: newId, weekday, blockId, teacherId, subjectId, classId }],
       }));
-     supabase.from('grade_horaria').insert([{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId }]).then();
+      supabase.from('grade_horaria').insert([{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId }]).then();
     },
     [],
   );
@@ -216,7 +215,7 @@ export function useStore() {
         ...prev,
         grid: prev.grid.map((s) => (s.id === id ? { ...s, teacherId, subjectId, classId } : s)),
       }));
-     supabase.from('grade_horaria').update({ professor_id: teacherId, disciplina: subjectId, turma: classId }).eq('id', id).then();
+      supabase.from('grade_horaria').update({ professor_id: teacherId, disciplina: subjectId, turma: classId }).eq('id', id).then();
     },
     [],
   );
@@ -226,7 +225,7 @@ export function useStore() {
       ...prev,
       grid: prev.grid.filter((s) => s.id !== id),
     }));
-   supabase.from('grade_horaria').delete().eq('id', id).then();
+    supabase.from('grade_horaria').delete().eq('id', id).then();
   }, []);
 
   const checkCollisions = useCallback(
@@ -238,6 +237,7 @@ export function useStore() {
       excludeOccurrenceId?: string,
     ): Collision[] => {
       const collisions: Collision[] = [];
+      if (!teacherId || teacherId === 'sem-professor') return collisions;
 
       const teacherGridSlots = db.grid.filter(
         (s) => s.weekday === weekday && s.blockId === blockId && s.teacherId === teacherId,
@@ -252,51 +252,9 @@ export function useStore() {
         });
       }
 
-      const classGridSlots = db.grid.filter(
-        (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId,
-      );
-      const classOtherTeachers = classGridSlots.filter((s) => s.teacherId !== teacherId);
-      if (classOtherTeachers.length > 0) {
-        const firstMatch = classOtherTeachers[0];
-        const otherTeacher = db.teachers.find((t) => t.id === firstMatch.teacherId);
-        collisions.push({
-          type: 'class',
-          message: `Turma já possui aula com ${otherTeacher?.name ?? 'outro professor'} neste horário`,
-        });
-      }
-
-      const teacherOcc = db.occurrences.filter(
-        (o) =>
-          o.weekday === weekday &&
-          o.blockId === blockId &&
-          o.teacherId === teacherId &&
-          o.id !== excludeOccurrenceId,
-      );
-      if (teacherOcc.length > 0) {
-        const firstMatch = teacherOcc[0];
-        collisions.push({
-          type: 'teacher',
-          message: `Professor já possui ocorrência registrada neste horário (${firstMatch.type})`,
-        });
-      }
-
-      const subOcc = db.occurrences.filter(
-        (o) =>
-          o.weekday === weekday &&
-          o.blockId === blockId &&
-          o.substituteTeacherId === teacherId &&
-          o.id !== excludeOccurrenceId,
-      );
-      if (subOcc.length > 0) {
-        collisions.push({
-          type: 'teacher',
-          message: `Professor já está como substituto em outra ocorrência neste horário`,
-        });
-      }
-
       return collisions;
     },
-    [db.grid, db.occurrences, db.classes, db.teachers],
+    [db.grid, db.classes],
   );
 
   const addOccurrence = useCallback(
@@ -309,7 +267,6 @@ export function useStore() {
       };
 
       const teacher = db.teachers.find((t) => t.id === data.teacherId);
-      const subTeacher = db.teachers.find((t) => t.id === data.substituteTeacherId);
       const schoolClass = db.classes.find((c) => c.id === data.classId);
 
       const emailLog: EmailLog = {
@@ -317,7 +274,7 @@ export function useStore() {
         to: teacher?.email ?? '',
         toName: teacher?.name ?? '',
         subject: `HorárioRangel — Ocorrência: ${data.type}`,
-        body: buildEmailBody(occurrence, teacher, subTeacher, schoolClass),
+        body: buildEmailBody(occurrence, teacher, null, schoolClass),
         occurrenceId: id,
         sentAt: new Date().toISOString(),
       };
@@ -328,17 +285,19 @@ export function useStore() {
         emailLogs: [emailLog, ...prev.emailLogs],
       }));
 
-    supabase.from('ocorrencias').insert([{ 
-      id, 
-      data: data.weekday || new Date().toLocaleDateString('pt-BR'), 
-      bloco_horario: String(occurrence.blockId), 
-      tipo: occurrence.type, 
-      professor_id: occurrence.teacherId || 'sem-professor', 
-      motivo: data.motivo || '' 
-    }]).then();
+      supabase.from('ocorrencias').insert([{ 
+        id, 
+        data: data.weekday || new Date().toLocaleDateString('pt-BR'), 
+        bloco_horario: String(occurrence.blockId), 
+        tipo: occurrence.type, 
+        professor_id: occurrence.teacherId || 'sem-professor', 
+        motivo: data.motivo || '' 
+      }]).then();
 
-    return emailLog;
-  }, [db.teachers, db.classes]);
+      return emailLog;
+    },
+    [db.teachers, db.classes, db.occurrences, db.emailLogs],
+  );
 
   const deleteOccurrence = useCallback((id: string) => {
     setDb((prev) => ({
@@ -347,7 +306,6 @@ export function useStore() {
     }));
     supabase.from('ocorrencias').delete().eq('id', id).then();
   }, []);
-
 
   const resetDB = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
@@ -378,3 +336,4 @@ export function useStore() {
     resetDB,
   };
 }
+
