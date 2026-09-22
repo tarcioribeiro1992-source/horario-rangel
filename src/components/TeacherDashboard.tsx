@@ -15,15 +15,37 @@ export function TeacherDashboard({ store }: { store: Store }) {
   const { selectedTeacherId, teachers, subjects, classes, grid, occurrences } = store;
   const teacher = teachers.find((t) => t.id === selectedTeacherId);
 
-  const myGrid = useMemo(() => grid.filter((s) => s.teacherId === selectedTeacherId), [grid, selectedTeacherId]);
-  const myOccurrences = useMemo(
-    () => occurrences.filter((o) => o.teacherId === selectedTeacherId),
-    [occurrences, selectedTeacherId],
-  );
-  const mySubstitutions = useMemo(
-    () => occurrences.filter((o) => o.substituteTeacherId === selectedTeacherId),
-    [occurrences, selectedTeacherId],
-  );
+  // Função para limpar e normalizar textos (evita quebras por acentos ou maiúsculas)
+  const normalizeText = (text: string) => 
+    text ? text.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+
+  // Filtros flexíveis com proteção extra contra espaços e quebras de texto
+  const myGrid = useMemo(() => {
+    const targetId = (selectedTeacherId || '').trim();
+    return grid.filter((s) => {
+      if (!s.teacherId) return false;
+      const cleanTeacherId = s.teacherId.trim();
+      return cleanTeacherId === targetId || cleanTeacherId.split('/').map(id => id.trim()).includes(targetId);
+    });
+  }, [grid, selectedTeacherId]);
+  
+  const myOccurrences = useMemo(() => {
+    const targetId = (selectedTeacherId || '').trim();
+    return occurrences.filter((o) => {
+      if (!o.teacherId) return false;
+      const cleanTeacherId = o.teacherId.trim();
+      return cleanTeacherId === targetId || cleanTeacherId.split('/').map(id => id.trim()).includes(targetId);
+    });
+  }, [occurrences, selectedTeacherId]);
+  
+  const mySubstitutions = useMemo(() => {
+    const targetId = (selectedTeacherId || '').trim();
+    return occurrences.filter((o) => {
+      if (!o.substituteTeacherId) return false;
+      const cleanSubId = o.substituteTeacherId.trim();
+      return cleanSubId === targetId || cleanSubId.split('/').map(id => id.trim()).includes(targetId);
+    });
+  }, [occurrences, selectedTeacherId]);
 
   const getSubject = (id: string) => subjects.find((s) => s.id === id);
   const getClass = (id: string) => classes.find((c) => c.id === id);
@@ -95,10 +117,9 @@ export function TeacherDashboard({ store }: { store: Store }) {
                       <span className="text-[9px] text-slate-400">{formatBlockTime(block.id)}</span>
                     </div>
                     {WEEKDAYS.map((d) => {
-                      const slot = myGrid.find((s) => s.weekday === d.key && s.blockId === block.id);
-                      const occ = myOccurrences.find((o) => o.weekday === d.key && o.blockId === block.id);
-                      const sub = mySubstitutions.find((o) => o.weekday === d.key && o.blockId === block.id);
-
+                      const slot = myGrid.find((s) => normalizeText(s.weekday) === normalizeText(d.key) && s.blockId === block.id);
+                      const occ = myOccurrences.find((o) => normalizeText(o.weekday) === normalizeText(d.key) && o.blockId === block.id);
+                      const sub = mySubstitutions.find((o) => normalizeText(o.weekday) === normalizeText(d.key) && o.blockId === block.id);
                       return (
                         <div key={`${d.key}-${block.id}`} className="min-h-[50px] rounded-lg border border-slate-100 bg-white p-1.5">
                           {slot && !occ && (
