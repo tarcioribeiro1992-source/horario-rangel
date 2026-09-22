@@ -83,7 +83,7 @@ export function GridView({ store }: { store: Store }) {
               onChange={(e) => setTeacherId(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
-              <option value="">Clube/Eletiva</option>
+              <option value="">Clube</option>
               {teachers.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -179,7 +179,7 @@ export function GridView({ store }: { store: Store }) {
                             {getSubject(s.subjectId)?.name}
                           </span>
                           <span className="text-slate-400 hidden lg:inline truncate">
-                            {teacherObj ? teacherObj.name.split(' ')[0] : 'Clube/Eletiva'}
+                            {teacherObj ? teacherObj.name.split(' ')[0] : 'Clube'}
                           </span>
                           <span className="text-slate-400">{getClass(s.classId)?.name}</span>
                           <button
