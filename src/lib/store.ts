@@ -69,14 +69,16 @@ export function useStore() {
   const [role, setRole] = useState<Role>('professor');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
 
-  // Sincronização inicial completa com o Supabase
+    // Sincronização inicial completa com o Supabase
   useEffect(() => {
     async function syncWithCloud() {
       try {
-        const [tRes, sRes, cRes] = await Promise.all([
+        const [tRes, sRes, cRes, gRes, oRes] = await Promise.all([
           supabase.from('professores').select('*'),
           supabase.from('disciplinas').select('*'),
-          supabase.from('turmas').select('*')
+          supabase.from('turmas').select('*'),
+          supabase.from('grade_horaria').select('*'),
+          supabase.from('ocorrencias').select('*')
         ]);
         
         let updatedDb = { ...db };
@@ -94,6 +96,16 @@ export function useStore() {
         if (cRes.data && cRes.data.length > 0) {
           updatedDb.classes = cRes.data.map((c: any) => ({
             id: c.id, name: c.nome, grade: c.ano_serie || ''
+          }));
+        }
+        if (gRes.data && gRes.data.length > 0) {
+          updatedDb.grid = gRes.data.map((g: any) => ({
+            id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario), teacherId: g.professor_id, subjectId: g.disciplina, classId: g.turma
+          }));
+        }
+        if (oRes.data && oRes.data.length > 0) {
+          updatedDb.occurrences = oRes.data.map((o: any) => ({
+            id: o.id, date: o.data, blockId: Number(o.bloco_horario), type: o.tipo, teacherId: o.professor_id, motivo: o.motivo || ''
           }));
         }
         
