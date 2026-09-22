@@ -4,7 +4,7 @@ import type { Store } from '@/lib/store';
 import type { Weekday } from '@/types';
 import { TIME_BLOCKS, WEEKDAYS } from '@/lib/timeBlocks';
 import { useToast } from '@/components/Toast';
-import { OccurrenceModal } from '@/components/OccurrenceModal'; // << ADICIONE ESTA LINHA AQUI
+import { OccurrenceModal } from '@/components/OccurrenceModal';
 import { buildWhatsAppMessage, buildWhatsAppURL } from '@/lib/whatsapp';
 import type { Occurrence } from '@/types';
 
