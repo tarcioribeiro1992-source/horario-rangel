@@ -1,272 +1,174 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, AlertTriangle, CheckCircle2, Mail } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import type { Store } from '@/lib/store';
-import type { Weekday, OccurrenceType, Occurrence } from '@/types';
-import { WEEKDAYS, TEACHING_BLOCK_IDS, formatBlockTime } from '@/lib/timeBlocks';
+import type { Weekday } from '@/types';
+import { WEEKDAYS, TIME_BLOCKS } from '@/lib/timeBlocks';
 
-const OCCURRENCE_TYPES: OccurrenceType[] = [
-  'Falta',
-  'Formação',
-  'Saída Cedo',
-  'Palestra Escolar',
-  'Projeto',
-];
-
-interface Props {
+interface OccurrenceModalProps {
   open: boolean;
   onClose: () => void;
-  store: Store;
+  onSaved: (occurrence: any, teacherName: string, type: string, email: string) => void;
   preselect: { weekday: Weekday; blockId: number } | null;
-  onSaved: (occurrence: Occurrence, teacherName: string, type: string, email: string) => void;
+  store: Store;
 }
 
-export function OccurrenceModal({ open, onClose, store, preselect, onSaved }: Props) {
+export function OccurrenceModal({ open, onClose, onSaved, preselect, store }: OccurrenceModalProps) {
+  const { teachers, classes, addOccurrence } = store;
+
+  const [teacherId, setTeacherId] = useState('');
+  const [classId, setClassId] = useState('');
   const [weekday, setWeekday] = useState<Weekday>('segunda');
   const [blockId, setBlockId] = useState<number>(1);
-  const [teacherId, setTeacherId] = useState<string>('');
-  const [classId, setClassId] = useState<string>('');
-  const [type, setType] = useState<OccurrenceType>('Falta');
-  const [note, setNote] = useState('');
-  const [substituteTeacherId, setSubstituteTeacherId] = useState<string>('');
+  const [type, setType] = useState('Falta');
+  const [motivo, setMotivo] = useState('');
 
-  const { teachers, classes, checkCollisions, addOccurrence } = store;
-
+  // Sincronizar o formulário caso a gestão clique em um horário específico do calendário
   useEffect(() => {
-    if (open) {
-      if (preselect) {
-        setWeekday(preselect.weekday);
-        setBlockId(preselect.blockId);
-        const slot = store.grid.find(
-          (s) => s.weekday === preselect.weekday && s.blockId === preselect.blockId,
-        );
-        if (slot) {
-          setTeacherId(slot.teacherId);
-          setClassId(slot.classId);
-        } else {
-          setTeacherId(teachers[0]?.id ?? '');
-          setClassId(classes[0]?.id ?? '');
-        }
-      } else {
-        setTeacherId(teachers[0]?.id ?? '');
-        setClassId(classes[0]?.id ?? '');
-      }
-      setType('Falta');
-      setNote('');
-      setSubstituteTeacherId('');
+    if (preselect) {
+      setWeekday(preselect.weekday);
+      setBlockId(preselect.blockId);
     }
-  }, [open, preselect, store.grid, teachers, classes]);
+  }, [preselect, open]);
 
-  const collisions = useMemo(() => {
-    if (!teacherId || !classId) return [];
-    return checkCollisions(weekday, blockId, teacherId, classId);
-  }, [weekday, blockId, teacherId, classId, checkCollisions]);
-
-  const teacher = teachers.find((t) => t.id === teacherId);
+  if (!open) return null;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!teacherId || !classId) return;
 
-    const emailLog = addOccurrence({
-      weekday,
-      blockId,
+    const teacher = teachers.find((t) => t.id === teacherId);
+
+    const log = addOccurrence({
       teacherId,
       classId,
+      weekday,
+      blockId,
       type,
-      note,
-      substituteTeacherId: substituteTeacherId || null,
+      motivo,
+      substituteTeacherId: '',
+      date: new Date().toLocaleDateString('pt-BR'),
     });
 
-    const occurrence: Occurrence = {
-      id: emailLog.occurrenceId,
-      weekday,
-      blockId,
-      teacherId,
-      classId,
+    onSaved(
+      { teacherId, classId, weekday, blockId, type, motivo },
+      teacher?.name || 'Professor',
       type,
-      note,
-      substituteTeacherId: substituteTeacherId || null,
-      createdAt: new Date().toISOString(),
-    };
+      teacher?.email || ''
+    );
 
-    onSaved(occurrence, teacher?.name ?? 'Professor', type, emailLog.to);
+    // Limpar o formulário
+    setTeacherId('');
+    setClassId('');
+    setMotivo('');
     onClose();
   }
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
-          <h3 className="text-lg font-bold text-slate-800">Registrar Ocorrência</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X className="w-5 h-5" />
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-md overflow-hidden animate-scale-in">
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="text-base font-bold text-slate-800">Registrar Ocorrência</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm font-medium">
+            Fechar
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Day + Block */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Professor Ausente / Envolvido</label>
+            <select
+              value={teacherId}
+              onChange={(e) => setTeacherId(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+              required
+            >
+              <option value="">Selecione o professor...</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Turma Afetada</label>
+            <select
+              value={classId}
+              onChange={(e) => setClassId(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+              required
+            >
+              <option value="">Selecione a turma...</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Dia da Semana</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Dia da Semana</label>
               <select
                 value={weekday}
                 onChange={(e) => setWeekday(e.target.value as Weekday)}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
                 {WEEKDAYS.map((d) => (
-                  <option key={d.key} value={d.key}>
-                    {d.full}
-                  </option>
+                  <option key={d.key} value={d.key}>{d.full}</option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Horário</label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Horário / Bloco</label>
               <select
                 value={blockId}
                 onChange={(e) => setBlockId(Number(e.target.value))}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
-                {TEACHING_BLOCK_IDS.map((id) => (
-                  <option key={id} value={id}>
-                    {formatBlockTime(id)}
-                  </option>
+                {TIME_BLOCKS.filter(b => !b.isBreak).map((b) => (
+                  <option key={b.id} value={b.id}>{b.label}</option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Teacher + Class */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Professor</label>
-              <select
-                value={teacherId}
-                onChange={(e) => setTeacherId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-              >
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1.5">Turma</label>
-              <select
-                value={classId}
-                onChange={(e) => setClassId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
-              >
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Type */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Tipo de Ocorrência</label>
-            <div className="flex flex-wrap gap-2">
-              {OCCURRENCE_TYPES.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                    type === t
-                      ? 'bg-sky-600 text-white border-sky-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Substitute */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-              Professor Substituto (opcional)
-            </label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Tipo de Ocorrência</label>
             <select
-              value={substituteTeacherId}
-              onChange={(e) => setSubstituteTeacherId(e.target.value)}
+              value={type}
+              onChange={(e) => setType(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
-              <option value="">Nenhum</option>
-              {teachers
-                .filter((t) => t.id !== teacherId)
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
+              <option value="Falta">Falta</option>
+              <option value="Formação">Formação</option>
+              <option value="Saída Cedo">Saída Cedo</option>
+              <option value="Palestra Escolar">Palestra Escolar</option>
+              <option value="Projeto">Projeto</option>
             </select>
           </div>
 
-          {/* Note */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">Observação</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Motivo / Observações (Opcional)</label>
             <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={2}
-              placeholder="Motivo ou detalhes da ocorrência..."
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ex: Licença médica, atraso de ônibus..."
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 h-20 resize-none"
             />
           </div>
 
-          {/* Collision Warnings */}
-          {collisions.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-sm font-semibold text-red-700">
-                <AlertTriangle className="w-4 h-4" />
-                Conflito Detectado
-              </div>
-              {collisions.map((c, i) => (
-                <p key={i} className="text-xs text-red-600 pl-5">
-                  {c.message}
-                </p>
-              ))}
-            </div>
-          )}
-
-          {/* Email Preview */}
-          {teacher && (
-            <div className="bg-sky-50 border border-sky-100 rounded-lg p-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-700 mb-1">
-                <Mail className="w-3.5 h-3.5" />
-                E-mail de notificação será enviado para:
-              </div>
-              <p className="text-xs text-sky-600 pl-5">{teacher.email}</p>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
+          <div className="pt-2 flex gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-2 rounded-lg text-sm transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-sm"
+              className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-medium py-2 rounded-lg text-sm transition-colors shadow-sm"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              Salvar Ocorrência
+              Confirmar e Salvar
             </button>
           </div>
         </form>
@@ -274,3 +176,6 @@ export function OccurrenceModal({ open, onClose, store, preselect, onSaved }: Pr
     </div>
   );
 }
+
+   
+     
