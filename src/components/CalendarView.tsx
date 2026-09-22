@@ -1,9 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Plus, AlertTriangle, User, BookOpen, Printer, CalendarDays } from 'lucide-react';
+import { Plus, AlertTriangle, User, BookOpen, Printer } from 'lucide-react';
 import type { Store } from '@/lib/store';
 import type { Weekday } from '@/types';
-import { TIME_BLOCKS, WEEKDAYS, formatBlockTime } from '@/lib/timeBlocks';
-import { OccurrenceModal } from '@/components/OccurrenceModal';
+import { TIME_BLOCKS, WEEKDAYS } from '@/lib/timeBlocks';
 import { useToast } from '@/components/Toast';
 import { buildWhatsAppMessage, buildWhatsAppURL } from '@/lib/whatsapp';
 import type { Occurrence } from '@/types';
@@ -19,21 +18,30 @@ export function CalendarView({ store }: { store: Store }) {
 
   const { grid, occurrences, teachers, subjects, classes } = store;
 
+  // Normalizador de texto para evitar quebras de maiúsculas/minúsculas vindas do banco
+  const normalizeKey = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
   const gridMap = useMemo(() => {
     const map = new Map<string, typeof grid[number]>();
-    grid.forEach((s) => map.set(`${s.weekday}-${s.blockId}`, s));
+    grid.forEach((s) => {
+      const dayKey = normalizeKey(s.weekday || '');
+      map.set(`${dayKey}-${s.blockId}`, s);
+    });
     return map;
   }, [grid]);
 
   const occMap = useMemo(() => {
     const map = new Map<string, typeof occurrences[number]>();
-    occurrences.forEach((o) => map.set(`${o.weekday}-${o.blockId}`, o));
+    occurrences.forEach((o) => {
+      const dayKey = normalizeKey(o.weekday || '');
+      map.set(`${dayKey}-${o.blockId}`, o);
+    });
     return map;
   }, [occurrences]);
 
   const getTeacher = (id: string) => teachers.find((t) => t.id === id);
-  const getSubject = (id: string) => subjects.find((s) => s.id === id);
-  const getClass = (id: string) => classes.find((c) => c.id === id);
+  const getSubject = (id: string) => subjects.find((s) => s.id === id || s.name === id);
+  const getClass = (id: string) => classes.find((c) => c.id === id || c.name === id);
 
   const occTypeColors: Record<string, string> = {
     Falta: 'bg-red-50 border-red-300 text-red-700',
@@ -55,7 +63,7 @@ export function CalendarView({ store }: { store: Store }) {
 
   function onSaved(occurrence: Occurrence, teacherName: string, type: string, email: string) {
     const teacher = teachers.find((t) => t.id === occurrence.teacherId);
-    const schoolClass = classes.find((c) => c.id === occurrence.classId);
+    const schoolClass = classes.find((c) => c.id === occurrence.classId || c.name === occurrence.classId);
     const substituteTeacher = teachers.find((t) => t.id === occurrence.substituteTeacherId);
 
     let whatsappUrl: string | undefined;
@@ -77,12 +85,8 @@ export function CalendarView({ store }: { store: Store }) {
   }
 
   const selectedDayFull = WEEKDAYS.find((d) => d.key === selectedDay)?.full ?? '';
-
   const daysToShow = viewMode === 'semanal' ? WEEKDAYS : WEEKDAYS.filter((d) => d.key === selectedDay);
-  const gridColsClass =
-    viewMode === 'semanal'
-      ? 'grid-cols-[140px_repeat(5,1fr)]'
-      : 'grid-cols-[140px_1fr]';
+  const gridColsClass = viewMode === 'semanal' ? 'grid-cols-[140px_repeat(5,1fr)]' : 'grid-cols-[140px_1fr]';
 
   return (
     <div>
@@ -99,37 +103,25 @@ export function CalendarView({ store }: { store: Store }) {
         <div>
           <h2 className="text-xl font-bold text-slate-800">Calendário {viewMode === 'semanal' ? 'Semanal' : 'Diário'}</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            {viewMode === 'semanal'
-              ? 'Segunda a Sexta — Grade de horários e ocorrências'
-              : `Grade de ${selectedDayFull}`}
+            {viewMode === 'semanal' ? 'Segunda a Sexta — Grade de horários e ocorrências' : `Grade de ${selectedDayFull}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* View mode toggle */}
           <div className="flex items-center bg-slate-100 rounded-lg p-1">
             <button
               onClick={() => setViewMode('semanal')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                viewMode === 'semanal'
-                  ? 'bg-white text-sky-700 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'semanal' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Semanal
             </button>
             <button
               onClick={() => setViewMode('diaria')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                viewMode === 'diaria'
-                  ? 'bg-white text-sky-700 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === 'diaria' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Diária
             </button>
           </div>
 
-          {/* Day selector (only in daily mode) */}
           {viewMode === 'diaria' && (
             <select
               value={selectedDay}
@@ -137,14 +129,11 @@ export function CalendarView({ store }: { store: Store }) {
               className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {WEEKDAYS.map((d) => (
-                <option key={d.key} value={d.key}>
-                  {d.full}
-                </option>
+                <option key={d.key} value={d.key}>{d.full}</option>
               ))}
             </select>
           )}
 
-          {/* Print button */}
           <button
             onClick={handlePrint}
             className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
@@ -153,7 +142,6 @@ export function CalendarView({ store }: { store: Store }) {
             Imprimir Grade {viewMode === 'semanal' ? 'Semanal' : 'Diária'}
           </button>
 
-          {/* Register occurrence */}
           <button
             onClick={handleQuickAddNoPreselect}
             className="flex items-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
@@ -163,7 +151,6 @@ export function CalendarView({ store }: { store: Store }) {
           </button>
         </div>
       </div>
-
       {/* Grid */}
       <div className={`overflow-x-auto ${viewMode === 'semanal' ? 'print-landscape' : 'print-portrait'}`}>
         <div className={viewMode === 'semanal' ? 'min-w-[1000px] print:min-w-0' : 'min-w-[400px] print:min-w-0'}>
@@ -208,7 +195,7 @@ export function CalendarView({ store }: { store: Store }) {
 
                 {/* Day cells */}
                 {daysToShow.map((d) => {
-                  const key = `${d.key}-${block.id}`;
+                  const key = `${normalizeKey(d.key)}-${block.id}`;
                   const slot = gridMap.get(key);
                   const occ = occMap.get(key);
 
@@ -229,11 +216,9 @@ export function CalendarView({ store }: { store: Store }) {
                             </span>
                           </div>
                           <div className="flex items-center gap-1 text-[11px] text-slate-500 print:text-black">
-                            <User className="w-3 h-3 flex-shrink-0 print:hidden" />
                             <span className="truncate">{getTeacher(slot.teacherId)?.name ?? '—'}</span>
                           </div>
                           <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5 print:text-black">
-                            <BookOpen className="w-3 h-3 flex-shrink-0 print:hidden" />
                             <span className="truncate">{getClass(slot.classId)?.name ?? '—'}</span>
                           </div>
                         </div>
@@ -275,24 +260,7 @@ export function CalendarView({ store }: { store: Store }) {
           })}
         </div>
       </div>
-
-      {/* Legend */}
-      <div className="no-print mt-5 flex flex-wrap items-center gap-3 text-xs">
-        <span className="font-semibold text-slate-500">Tipos de Ocorrência:</span>
-        {Object.entries(occTypeColors).map(([type, cls]) => (
-          <span key={type} className={`px-2.5 py-1 rounded-full border ${cls} font-medium`}>
-            {type}
-          </span>
-        ))}
-      </div>
-
-      <OccurrenceModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        store={store}
-        preselect={preselect}
-        onSaved={onSaved}
-      />
     </div>
   );
 }
+    
