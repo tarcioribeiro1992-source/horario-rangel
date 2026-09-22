@@ -328,20 +328,26 @@ export function useStore() {
         emailLogs: [emailLog, ...prev.emailLogs],
       }));
 
-supabase.from('ocorrencias').insert([{ id, data: occurrence.weekday || new Date().toLocaleDateString('pt-BR'), bloco_horario: String(occurrence.blockId), tipo: occurrence.type, professor_id: occurrence.teacherId || 'sem-professor', motivo: occurrence.motivo || '' }]).then();
+    supabase.from('ocorrencias').insert([{ 
+      id, 
+      data: data.weekday || new Date().toLocaleDateString('pt-BR'), 
+      bloco_horario: String(occurrence.blockId), 
+      tipo: occurrence.type, 
+      professor_id: occurrence.teacherId || 'sem-professor', 
+      motivo: data.motivo || '' 
+    }]).then();
 
-      return emailLog;
-    },
-    [db.teachers, db.classes],
-  );
+    return emailLog;
+  }, [db.teachers, db.classes]);
 
-    const deleteOccurrence = useCallback((id: string) => {
+  const deleteOccurrence = useCallback((id: string) => {
     setDb((prev) => ({
       ...prev,
       occurrences: prev.occurrences.filter((o) => o.id !== id),
     }));
-       supabase.from('ocorrencias').delete().eq('id', id).then();
+    supabase.from('ocorrencias').delete().eq('id', id).then();
   }, []);
+
 
   const resetDB = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
