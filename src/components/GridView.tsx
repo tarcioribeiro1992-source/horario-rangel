@@ -35,7 +35,7 @@ export function GridView({ store }: { store: Store }) {
     e.preventDefault();
     if (!subjectId || !classId) return; // Removida a obrigatoriedade do professor
     // Se o professor estiver vazio, envia uma string vazia ou nula para o banco
-    addGridSlot(weekday, blockId, teacherId || '', subjectId, classId);
+    addGridSlot(weekday, blockId, teacherId ? teacherId : null, subjectId, classId);
     setTeacherId('');
     setSubjectId('');
     setClassId('');
