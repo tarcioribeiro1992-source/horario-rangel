@@ -21,20 +21,26 @@ export function CalendarView({ store }: { store: Store }) {
   // Normalizador de texto para evitar quebras de maiúsculas/minúsculas vindas do banco
   const normalizeKey = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+  // Mapeamento alterado para aceitar MULTIPLAS aulas no mesmo bloco de horário
   const gridMap = useMemo(() => {
-    const map = new Map<string, typeof grid[number]>();
+    const map = new Map<string, typeof grid>();
     grid.forEach((s) => {
       const dayKey = normalizeKey(s.weekday || '');
-      map.set(`${dayKey}-${s.blockId}`, s);
+      const mapKey = `${dayKey}-${s.blockId}`;
+      const existing = map.get(mapKey) || [];
+      map.set(mapKey, [...existing, s]);
     });
     return map;
   }, [grid]);
 
+  // Mapeamento alterado para aceitar MULTIPLAS ocorrências no mesmo bloco de horário
   const occMap = useMemo(() => {
-    const map = new Map<string, typeof occurrences[number]>();
+    const map = new Map<string, typeof occurrences>();
     occurrences.forEach((o) => {
       const dayKey = normalizeKey(o.weekday || '');
-      map.set(`${dayKey}-${o.blockId}`, o);
+      const mapKey = `${dayKey}-${o.blockId}`;
+      const existing = map.get(mapKey) || [];
+      map.set(mapKey, [...existing, o]);
     });
     return map;
   }, [occurrences]);
@@ -196,58 +202,56 @@ export function CalendarView({ store }: { store: Store }) {
                 {/* Day cells */}
                 {daysToShow.map((d) => {
                   const key = `${normalizeKey(d.key)}-${block.id}`;
-                  const slot = gridMap.get(key);
-                  const occ = occMap.get(key);
+                  const slots = gridMap.get(key) || [];
+                  const occs = occMap.get(key) || [];
 
                   return (
                     <div
                       key={key}
-                      className="group relative min-h-[72px] rounded-lg border border-slate-100 bg-white hover:border-slate-200 transition-colors overflow-hidden print:border-slate-300 print:min-h-[48px]"
+                      className="group relative min-h-[72px] rounded-lg border border-slate-100 bg-white hover:border-slate-200 transition-colors overflow-hidden print:border-slate-300 print:min-h-[48px] flex flex-col gap-1 p-1"
                     >
-                      {slot && !occ && (
-                        <div className="p-2 h-full flex flex-col">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <div
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0 print:border print:border-slate-400"
-                              style={{ backgroundColor: getSubject(slot.subjectId)?.color ?? '#94a3b8' }}
-                            />
-                            <span className="text-xs font-semibold text-slate-700 truncate print:text-black">
-                              {getSubject(slot.subjectId)?.name ?? '—'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[11px] text-slate-500 print:text-black">
-                            <span className="truncate">{getTeacher(slot.teacherId)?.name ?? '—'}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5 print:text-black">
-                            <span className="truncate">{getClass(slot.classId)?.name ?? '—'}</span>
-                          </div>
-                        </div>
-                      )}
+                      {/* Renderizar todas as aulas agendadas para este bloco */}
+                      {slots.map((slot) => {
+                        // Verificar se este slot específico possui uma ocorrência de falta
+                        const hasOcc = occs.find(o => o.teacherId === slot.teacherId);
+                        if (hasOcc) return null;
 
-                      {occ && (
-                        <div className={`p-2 h-full border-l-4 ${occTypeColors[occ.type] ?? 'bg-slate-50 border-slate-300'} print:border-l-4 print:border-slate-500 print:bg-white`}>
-                          <div className="flex items-center gap-1 mb-0.5">
-                            <AlertTriangle className="w-3 h-3 flex-shrink-0 print:hidden" />
-                            <span className="text-xs font-bold truncate print:text-black">{occ.type}</span>
+                        return (
+                          <div key={slot.id} className="p-1 border border-slate-50 rounded bg-slate-50/50 flex flex-col text-[11px]">
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <div
+                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: getSubject(slot.subjectId)?.color ?? '#94a3b8' }}
+                              />
+                              <span className="font-semibold text-slate-700 truncate">
+                                {getSubject(slot.subjectId)?.name ?? '—'}
+                              </span>
+                            </div>
+                            <div className="text-slate-500 truncate font-medium">Prof: {getTeacher(slot.teacherId)?.name ?? '—'}</div>
+                            <div className="text-slate-400 truncate">Turma: {getClass(slot.classId)?.name ?? '—'}</div>
                           </div>
-                          <p className="text-[11px] text-slate-600 truncate print:text-black">
-                            {getTeacher(occ.teacherId)?.name ?? '—'}
-                          </p>
-                          <p className="text-[11px] text-slate-500 truncate print:text-black">
-                            {getClass(occ.classId)?.name ?? '—'}
-                          </p>
+                        );
+                      })}
+
+                      {/* Renderizar todas as ocorrências deste bloco */}
+                      {occs.map((occ) => (
+                        <div key={occ.id} className={`p-1 border-l-4 rounded ${occTypeColors[occ.type] ?? 'bg-slate-50 border-slate-300'} flex flex-col text-[11px]`}>
+                          <div className="flex items-center gap-1 font-bold mb-0.5 text-xs">
+                            <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{occ.type}</span>
+                          </div>
+                          <div className="truncate">Prof: {getTeacher(occ.teacherId)?.name ?? '—'}</div>
+                          <div className="truncate">Turma: {getClass(occ.classId)?.name ?? '—'}</div>
                           {occ.substituteTeacherId && (
-                            <p className="text-[10px] text-slate-400 truncate mt-0.5 print:text-black">
-                              Sub: {getTeacher(occ.substituteTeacherId)?.name ?? '—'}
-                            </p>
+                            <div className="text-[10px] text-slate-400 truncate">Sub: {getTeacher(occ.substituteTeacherId)?.name ?? '—'}</div>
                           )}
                         </div>
-                      )}
+                      ))}
 
                       {/* Quick add button */}
                       <button
                         onClick={() => handleQuickAdd(d.key, block.id)}
-                        className="no-print absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-100 hover:bg-sky-100 text-slate-400 hover:text-sky-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                        className="no-print absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-100 hover:bg-sky-100 text-slate-400 hover:text-sky-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-10"
                         title="Registrar ocorrência"
                       >
                         <Plus className="w-3 h-3" />
@@ -263,4 +267,6 @@ export function CalendarView({ store }: { store: Store }) {
     </div>
   );
 }
-    
+
+ 
+              
