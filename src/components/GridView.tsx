@@ -179,7 +179,7 @@ export function GridView({ store }: { store: Store }) {
                             {getSubject(s.subjectId)?.name}
                           </span>
                           <span className="text-slate-400 hidden lg:inline truncate">
-                            {teacherObj ? teacherObj.name.split(' ')[0] : 'Sem Prof.'}
+                            {teacherObj ? teacherObj.name.split(' ')[0] : 'Clube/Eletiva'}
                           </span>
                           <span className="text-slate-400">{getClass(s.classId)?.name}</span>
                           <button
