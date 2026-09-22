@@ -27,14 +27,15 @@ export function GridView({ store }: { store: Store }) {
   const getClass = (id: string) => classes.find((c) => c.id === id);
 
   const collisions = useMemo(() => {
-    if (!teacherId || !classId || !subjectId) return [];
+    if (!classId || !subjectId || !teacherId) return [];
     return checkCollisions(weekday, blockId, teacherId, classId);
   }, [weekday, blockId, teacherId, classId, subjectId, checkCollisions]);
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!teacherId || !subjectId || !classId) return;
-    addGridSlot(weekday, blockId, teacherId, subjectId, classId);
+    if (!subjectId || !classId) return; // Removida a obrigatoriedade do professor
+    // Se o professor estiver vazio, envia uma string vazia ou nula para o banco
+    addGridSlot(weekday, blockId, teacherId || '', subjectId, classId);
     setTeacherId('');
     setSubjectId('');
     setClassId('');
@@ -82,7 +83,7 @@ export function GridView({ store }: { store: Store }) {
               onChange={(e) => setTeacherId(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
-              <option value="">Selecione...</option>
+              <option value="">Sem Professor (Clube / Estudo Dirigido)</option>
               {teachers.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -117,7 +118,7 @@ export function GridView({ store }: { store: Store }) {
           <div className="flex items-end">
             <button
               type="submit"
-              disabled={!teacherId || !subjectId || !classId}
+              disabled={!subjectId || !classId} // Removida a trava do professor no botão de adicionar
               className="w-full flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -163,30 +164,33 @@ export function GridView({ store }: { store: Store }) {
                 const slots = gridMap.get(key) ?? [];
                 return (
                   <div key={key} className="min-h-[60px] rounded-lg border border-slate-100 bg-white p-1.5 space-y-1">
-                    {slots.map((s) => (
-                      <div
-                        key={s.id}
-                        className="group flex items-center gap-1 bg-slate-50 rounded-md px-1.5 py-1 text-[11px]"
-                      >
+                    {slots.map((s) => {
+                      const teacherObj = getTeacher(s.teacherId);
+                      return (
                         <div
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: getSubject(s.subjectId)?.color }}
-                        />
-                        <span className="font-medium text-slate-700 truncate flex-1">
-                          {getSubject(s.subjectId)?.name}
-                        </span>
-                        <span className="text-slate-400 hidden lg:inline truncate">
-                          {getTeacher(s.teacherId)?.name.split(' ')[0]}
-                        </span>
-                        <span className="text-slate-400">{getClass(s.classId)?.name}</span>
-                        <button
-                          onClick={() => deleteGridSlot(s.id)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"
+                          key={s.id}
+                          className="group flex items-center gap-1 bg-slate-50 rounded-md px-1.5 py-1 text-[11px]"
                         >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <div
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: getSubject(s.subjectId)?.color }}
+                          />
+                          <span className="font-medium text-slate-700 truncate flex-1">
+                            {getSubject(s.subjectId)?.name}
+                          </span>
+                          <span className="text-slate-400 hidden lg:inline truncate">
+                            {teacherObj ? teacherObj.name.split(' ')[0] : 'Sem Prof.'}
+                          </span>
+                          <span className="text-slate-400">{getClass(s.classId)?.name}</span>
+                          <button
+                            onClick={() => deleteGridSlot(s.id)}
+                            className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
