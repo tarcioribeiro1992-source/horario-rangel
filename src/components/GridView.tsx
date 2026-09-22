@@ -31,15 +31,15 @@ export function GridView({ store }: { store: Store }) {
     return checkCollisions(weekday, blockId, teacherId, classId);
   }, [weekday, blockId, teacherId, classId, subjectId, checkCollisions]);
 
-  function handleAdd(e: React.FormEvent) {
+   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!subjectId || !classId) return; // Removida a obrigatoriedade do professor
-    // Se o professor estiver vazio, envia uma string vazia ou nula para o banco
-    addGridSlot(weekday, blockId, teacherId ? teacherId : null, subjectId, classId);
+    if (!subjectId || !classId) return; 
+    addGridSlot(weekday, blockId, teacherId ? teacherId : 'sem-professor', subjectId, classId);
     setTeacherId('');
     setSubjectId('');
     setClassId('');
   }
+
 
   return (
     <div>
