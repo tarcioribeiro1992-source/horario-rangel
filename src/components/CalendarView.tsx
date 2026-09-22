@@ -1,13 +1,12 @@
 import { useState, useMemo } from 'react';
-import { Plus, AlertTriangle, User, BookOpen, Printer } from 'lucide-react';
+import { Plus, AlertTriangle, Printer } from 'lucide-react';
 import type { Store } from '@/lib/store';
 import type { Weekday } from '@/types';
 import { TIME_BLOCKS, WEEKDAYS } from '@/lib/timeBlocks';
 import { useToast } from '@/components/Toast';
-import { OccurrenceModal } from '@/components/OccurrenceModal';
 import { buildWhatsAppMessage, buildWhatsAppURL } from '@/lib/whatsapp';
+import { OccurrenceModal } from '@/components/OccurrenceModal';
 import type { Occurrence } from '@/types';
-
 
 type ViewMode = 'semanal' | 'diaria';
 
@@ -20,10 +19,8 @@ export function CalendarView({ store }: { store: Store }) {
 
   const { grid, occurrences, teachers, subjects, classes } = store;
 
-  // Normalizador de texto para evitar quebras de maiúsculas/minúsculas vindas do banco
   const normalizeKey = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-  // Mapeamento alterado para aceitar MULTIPLAS aulas no mesmo bloco de horário
   const gridMap = useMemo(() => {
     const map = new Map<string, typeof grid>();
     grid.forEach((s) => {
@@ -35,7 +32,6 @@ export function CalendarView({ store }: { store: Store }) {
     return map;
   }, [grid]);
 
-  // Mapeamento alterado para aceitar MULTIPLAS ocorrências no mesmo bloco de horário
   const occMap = useMemo(() => {
     const map = new Map<string, typeof occurrences>();
     occurrences.forEach((o) => {
@@ -98,7 +94,6 @@ export function CalendarView({ store }: { store: Store }) {
 
   return (
     <div>
-      {/* Print-only header */}
       <div className="hidden print:block mb-6 text-center">
         <h1 className="text-2xl font-bold text-black">HorárioRangel — Grade de Horários</h1>
         <p className="text-sm text-black mt-1">
@@ -106,7 +101,6 @@ export function CalendarView({ store }: { store: Store }) {
         </p>
       </div>
 
-      {/* Header */}
       <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Calendário {viewMode === 'semanal' ? 'Semanal' : 'Diário'}</h2>
@@ -159,10 +153,8 @@ export function CalendarView({ store }: { store: Store }) {
           </button>
         </div>
       </div>
-      {/* Grid */}
       <div className={`overflow-x-auto ${viewMode === 'semanal' ? 'print-landscape' : 'print-portrait'}`}>
         <div className={viewMode === 'semanal' ? 'min-w-[1000px] print:min-w-0' : 'min-w-[400px] print:min-w-0'}>
-          {/* Header Row */}
           <div className={`grid ${gridColsClass} gap-1.5 mb-1.5`}>
             <div className="flex items-center justify-center text-xs font-semibold text-slate-400 uppercase tracking-wide">
               Horário
@@ -178,7 +170,6 @@ export function CalendarView({ store }: { store: Store }) {
             ))}
           </div>
 
-          {/* Time Blocks */}
           {TIME_BLOCKS.map((block) => {
             if (block.isBreak) {
               return (
@@ -195,13 +186,11 @@ export function CalendarView({ store }: { store: Store }) {
 
             return (
               <div key={block.id} className={`grid ${gridColsClass} gap-1.5 mb-1.5`}>
-                {/* Time label */}
                 <div className="flex flex-col items-center justify-center bg-slate-50 rounded-lg py-1.5 border border-slate-100 print:bg-slate-100 print:text-black print:border-slate-300">
                   <span className="text-xs font-bold text-slate-600 print:text-black">{block.label}</span>
                   <span className="text-[10px] text-slate-400 mt-0.5 print:text-black/60">{block.start}–{block.end}</span>
                 </div>
 
-                {/* Day cells */}
                 {daysToShow.map((d) => {
                   const key = `${normalizeKey(d.key)}-${block.id}`;
                   const slots = gridMap.get(key) || [];
@@ -212,9 +201,7 @@ export function CalendarView({ store }: { store: Store }) {
                       key={key}
                       className="group relative min-h-[72px] rounded-lg border border-slate-100 bg-white hover:border-slate-200 transition-colors overflow-hidden print:border-slate-300 print:min-h-[48px] flex flex-col gap-1 p-1"
                     >
-                      {/* Renderizar todas as aulas agendadas para este bloco */}
                       {slots.map((slot) => {
-                        // Verificar se este slot específico possui uma ocorrência de falta
                         const hasOcc = occs.find(o => o.teacherId === slot.teacherId);
                         if (hasOcc) return null;
 
@@ -235,7 +222,6 @@ export function CalendarView({ store }: { store: Store }) {
                         );
                       })}
 
-                      {/* Renderizar todas as ocorrências deste bloco */}
                       {occs.map((occ) => (
                         <div key={occ.id} className={`p-1 border-l-4 rounded ${occTypeColors[occ.type] ?? 'bg-slate-50 border-slate-300'} flex flex-col text-[11px]`}>
                           <div className="flex items-center gap-1 font-bold mb-0.5 text-xs">
@@ -250,7 +236,6 @@ export function CalendarView({ store }: { store: Store }) {
                         </div>
                       ))}
 
-                      {/* Quick add button */}
                       <button
                         onClick={() => handleQuickAdd(d.key, block.id)}
                         className="no-print absolute top-1 right-1 w-5 h-5 rounded-full bg-slate-100 hover:bg-sky-100 text-slate-400 hover:text-sky-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-10"
@@ -266,9 +251,14 @@ export function CalendarView({ store }: { store: Store }) {
           })}
         </div>
       </div>
+
+      <OccurrenceModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSaved={onSaved}
+        preselect={preselect}
+        store={store}
+      />
     </div>
   );
 }
-
- 
-              
