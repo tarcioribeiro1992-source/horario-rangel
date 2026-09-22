@@ -328,7 +328,7 @@ export function useStore() {
         emailLogs: [emailLog, ...prev.emailLogs],
       }));
 
- supabase.from('ocorrencias').insert([{ id, data: new Date().toISOString().split('T')[0], bloco_horario: String(occurrence.blockId), tipo: occurrence.type, professor_id: occurrence.teacherId, motivo: occurrence.motivo || '' }]).then();
+supabase.from('ocorrencias').insert([{ id, data: occurrence.weekday || new Date().toLocaleDateString('pt-BR'), bloco_horario: String(occurrence.blockId), tipo: occurrence.type, professor_id: occurrence.teacherId || 'sem-professor', motivo: occurrence.motivo || '' }]).then();
 
       return emailLog;
     },
