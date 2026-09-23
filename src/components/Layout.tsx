@@ -14,18 +14,19 @@ interface LayoutProps {
 }
 
 const ADMIN_NAV: { key: AdminView; label: string; icon: typeof Calendar }[] = [
-  { key: 'calendario', label: 'Horário', icon: Calendar },
+  { key: 'calendario', label: 'Calendário', icon: Calendar },
   { key: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { key: 'professores', label: 'Professores', icon: Users },
   { key: 'disciplinas', label: 'Disciplinas', icon: GraduationCap },
   { key: 'turmas', label: 'Turmas', icon: Settings },
-  { key: 'grade', label: 'Editar Horários', icon: Clock },
+  { key: 'grade', label: 'Grade Curricular', icon: Clock },
   { key: 'emails', label: 'E-mails', icon: Mail },
 ];
 
 export function Layout({ store, adminView, setAdminView, children }: LayoutProps) {
-  const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId } = store;
+  const { role, setRole, teachers, classes, selectedTeacherId, setSelectedTeacherId } = store;
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId);
+  const selectedClass = classes.find((c) => c.id === selectedTeacherId);
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   function handleGestaoClick() {
@@ -34,9 +35,9 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
     }
   }
 
-  function handlePasswordSuccess() {
-    setPasswordOpen(false);
-    setRole('gestao');
+  function handleRoleChange(newRole: any) {
+    setRole(newRole);
+    setSelectedTeacherId(''); // Limpa a seleção ao trocar de perfil
   }
 
   return (
@@ -46,53 +47,75 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo */}
-<div className="flex items-center gap-2.5 flex-shrink-0">
-  <div className="flex items-center justify-center">
-   <img src="/logo.png" alt="HorárioRangel" className="h-10 w-auto object-contain" />
-  </div>
-
+            <div className="flex items-center gap-2.5 flex-shrink-0">
+              <div className="flex items-center justify-center">
+               <img src="/logo.png" alt="HorárioRangel" className="h-10 w-auto object-contain" />
+              </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-bold text-slate-800 leading-none">Horário Rangel</h1>
-                <p className="text-xs text-slate-400 mt-0.5">Sistema de Gestão de Horários</p>
+                <h1 className="text-lg font-bold text-slate-800 leading-none">HorárioRangel</h1>
+                <p className="text-xs text-slate-400 mt-0.5">Gestão de Horários Escolares</p>
               </div>
             </div>
 
             {/* Selector and Role Toggle */}
             <div className="flex items-center gap-3">
-              {/* Menu de Seleção visível para todos (Gestão e Professores) */}
-              <select
-                value={selectedTeacherId || ''}
-                onChange={(e) => setSelectedTeacherId(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
-              >
-                <option value="">👇 Olá! Selecione seu nome aqui!</option>
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {role === 'gestao' ? `Simular: ${t.name}` : t.name}
-                  </option>
-                ))}
-              </select>
+              
+              {/* Se for Professor ou Gestão, exibe a lista de professores */}
+              {(role === 'professor' || role === 'gestao') && (
+                <select
+                  value={selectedTeacherId || ''}
+                  onChange={(e) => setSelectedTeacherId(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
+                >
+                  <option value="">👇 Escolha seu nome aqui</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {role === 'gestao' ? `Simular: ${t.name}` : t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Se for Aluno, exibe a lista de turmas */}
+              {role === 'aluno' && (
+                <select
+                  value={selectedTeacherId || ''}
+                  onChange={(e) => setSelectedTeacherId(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
+                >
+                  <option value="">👇 Escolha sua turma aqui</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               <div className="flex items-center bg-slate-100 rounded-lg p-1">
                 <button
                   onClick={handleGestaoClick}
-                  className={`px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    role === 'gestao'
-                      ? 'bg-white text-sky-700 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
+                  className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                    role === 'gestao' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   Gestão
                 </button>
                 <button
-                  onClick={() => setRole('professor')}
-                  className={`px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    role === 'professor'
-                      ? 'bg-white text-teal-600 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
+                  onClick={() => handleRoleChange('professor')}
+                  className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                    role === 'professor' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   Professor
+                </button>
+                <button
+                  onClick={() => handleRoleChange('aluno')}
+                  className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
+                    role === 'aluno' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Aluno
                 </button>
               </div>
             </div>
@@ -107,11 +130,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
                   <button
                     key={item.key}
                     onClick={() => setAdminView(item.key)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                      adminView === item.key
-                        ? 'bg-sky-50 text-sky-700'
-                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                    }`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                   >
                     <Icon className="w-4 h-4" />
                     {item.label}
@@ -131,12 +150,18 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
             <span className="font-semibold text-slate-700">{selectedTeacher.name}</span>
           </div>
         )}
+        {role === 'aluno' && selectedClass && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
+            <span>Visualizando Turma:</span>
+            <span className="font-semibold text-slate-700">{selectedClass.name}</span>
+          </div>
+        )}
         {children}
       </main>
 
       <footer className="no-print border-t border-slate-200 bg-white py-4">
         <div className="max-w-[1600px] mx-auto px-6 text-center text-xs text-slate-400">
-          Sistema de Gestão de Horários - Desenvolvido por Tárcio Ribeiro
+          HorárioRangel — Sistema de Gestão de Horários Escolares
         </div>
       </footer>
 
