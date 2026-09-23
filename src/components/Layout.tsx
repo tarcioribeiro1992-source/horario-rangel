@@ -18,12 +18,12 @@ type NavGroup = { group: true; label: string; icon: typeof Calendar; items: NavL
 type NavItem = NavLeaf | NavGroup;
 
 const ADMIN_NAV: NavItem[] = [
+  { key: 'calendario', label: 'Horário Completo', icon: Calendar },
+  { key: 'horario-turmas', label: 'Horário por Turma', icon: BookOpen },
+  { key: 'grade', label: 'Editar Horários', icon: Clock },
+  { key: 'turmas', label: 'Turmas', icon: Settings },
   { key: 'emails', label: 'E-mails', icon: Mail },
   { key: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
-  { key: 'grade', label: 'Editar Horários', icon: Clock },
-  { key: 'calendario', label: 'Horário', icon: Calendar },
-  { key: 'horario-turmas', label: 'Horário por Turma', icon: BookOpen },
-  { key: 'turmas', label: 'Turmas', icon: Settings },
 ];
 
 export function Layout({ store, adminView, setAdminView, children }: LayoutProps) {
