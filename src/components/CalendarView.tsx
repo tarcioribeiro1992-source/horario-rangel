@@ -94,6 +94,45 @@ export function CalendarView({ store }: { store: Store }) {
 
   return (
     <div>
+        return (
+    <div>
+      {/* Estilo secreto para forçar a impressão em apenas uma página A4 */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          @page {
+            size: landscape;
+            margin: 0.5cm;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+            font-size: 11px !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          /* Encolher a grade para caber na folha */
+          main, div, .overflow-x-auto, .grid {
+            margin: 0 !important;
+            padding: 0 !important;
+            page-break-inside: avoid !important;
+          }
+          .min-h-\\[72px\\], .min-h-\\[48px\\] {
+            min-height: 42px !important;
+            height: 42px !important;
+            padding: 2px !important;
+          }
+          span, p {
+            font-size: 9px !important;
+            line-height: 1.1 !important;
+            margin: 0 !important;
+          }
+        }
+      `}} />
+
+      {/* Print-only header */}
+      <div className="hidden print:block mb-6 text-center">
+
       <div className="hidden print:block mb-6 text-center">
         <h1 className="text-2xl font-bold text-black">Horário Rangel — Grade de Horários</h1>
         <p className="text-sm text-black mt-1">
