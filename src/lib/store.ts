@@ -228,7 +228,7 @@ export function useStore() {
     supabase.from('grade_horaria').delete().eq('id', id).then();
   }, []);
 
-  const checkCollisions = useCallback(
+    const checkCollisions = useCallback(
     (
       weekday: Weekday,
       blockId: number,
@@ -237,25 +237,47 @@ export function useStore() {
       excludeOccurrenceId?: string,
     ): Collision[] => {
       const collisions: Collision[] = [];
-      if (!teacherId || teacherId === 'sem-professor') return collisions;
+      if (!classId) return collisions;
 
-      const teacherGridSlots = db.grid.filter(
-        (s) => s.weekday === weekday && s.blockId === blockId && s.teacherId === teacherId,
+      // 1. CONFLITO DE TURMA: Bloquear mais de uma aula para a MESMA TURMA no mesmo horário
+      const classSlots = db.grid.filter(
+        (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId
       );
-      const teacherOtherClasses = teacherGridSlots.filter((s) => s.classId !== classId);
-      if (teacherOtherClasses.length > 0) {
-        const firstMatch = teacherOtherClasses[0];
-        const otherClass = db.classes.find((c) => c.id === firstMatch.classId);
+      if (classSlots.length > 0) {
         collisions.push({
-          type: 'teacher',
-          message: `Professor já alocado na turma ${otherClass?.name ?? 'outra'} neste horário`,
+          type: 'class',
+          message: `Esta turma já possui uma aula agendada neste mesmo horário.`,
         });
+      }
+
+      // 2. CONFLITO DE PROFESSOR: Bloquear se o professor já estiver em outra sala
+      if (!teacherId || teacherId === 'sem-professor') return collisions;
+      
+      const incomingIds = teacherId.split('/').map(id => id.trim());
+
+      const teacherSlots = db.grid.filter((s) => s.weekday === weekday && s.blockId === blockId);
+      
+      for (const slot of teacherSlots) {
+        if (!slot.teacherId || slot.teacherId === 'sem-professor') continue;
+        
+        const existingIds = slot.teacherId.split('/').map(id => id.trim());
+        const standardMatch = incomingIds.some(id => existingIds.includes(id));
+
+        if (standardMatch && slot.classId !== classId) {
+          const otherClass = db.classes.find((c) => c.id === slot.classId);
+          collisions.push({
+            type: 'teacher',
+            message: `O professor já está alocado na turma ${otherClass?.name ?? 'outra'} neste horário.`,
+          });
+          break;
+        }
       }
 
       return collisions;
     },
     [db.grid, db.classes],
   );
+
 
   const addOccurrence = useCallback(
     (data: Omit<Occurrence, 'id' | 'createdAt'>) => {
