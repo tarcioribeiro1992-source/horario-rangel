@@ -18,15 +18,6 @@ type NavGroup = { group: true; label: string; icon: typeof Calendar; items: NavL
 type NavItem = NavLeaf | NavGroup;
 
 const ADMIN_NAV: NavItem[] = [
-  {
-    group: true,
-    label: 'Cadastros',
-    icon: FolderOpen,
-    items: [
-      { key: 'disciplinas', label: 'Disciplinas', icon: GraduationCap },
-      { key: 'professores', label: 'Professores', icon: Users },
-    ],
-  },
   { key: 'emails', label: 'E-mails', icon: Mail },
   { key: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { key: 'grade', label: 'Editar Horários', icon: Clock },
