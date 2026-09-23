@@ -9,7 +9,7 @@ import { ClassesView } from '@/components/ClassesView';
 import { GridView } from '@/components/GridView';
 import { EmailsView } from '@/components/EmailsView';
 import { TeacherDashboard } from '@/components/TeacherDashboard';
-import { ClassDashboard } from '@/components/ClassDashboard'; // << Importação da nova tela
+import { ClassDashboard } from '@/components/ClassDashboard';
 import { useStore } from '@/lib/store';
 
 function AppContent() {
@@ -17,10 +17,13 @@ function AppContent() {
   const [adminView, setAdminView] = useState<AdminView>('calendario');
 
   let content;
-  if (store.role === 'professor') {
+  // Comparação flexível para evitar travamentos de tipo
+  const currentRole = String(store.role);
+
+  if (currentRole === 'professor') {
     content = <TeacherDashboard store={store} />;
-  } else if (store.role === 'aluno') {
-    content = <ClassDashboard store={store} />; // << Exibe a tela do aluno
+  } else if (currentRole === 'aluno') {
+    content = <ClassDashboard store={store} />;
   } else {
     switch (adminView) {
       case 'calendario':
@@ -44,6 +47,8 @@ function AppContent() {
       case 'emails':
         content = <EmailsView store={store} />;
         break;
+      default:
+        content = <ClassDashboard store={store} />;
     }
   }
 
@@ -61,4 +66,5 @@ export default function App() {
     </ToastProvider>
   );
 }
+
 
