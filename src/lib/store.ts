@@ -336,6 +336,8 @@ export function useStore() {
 
   return {
     ...db,
+    teachers: [...db.teachers].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+    subjects: [...db.subjects].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     role,
     setRole,
     selectedTeacherId,
