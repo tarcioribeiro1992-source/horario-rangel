@@ -14,12 +14,12 @@ interface LayoutProps {
 }
 
 const ADMIN_NAV: { key: AdminView; label: string; icon: typeof Calendar }[] = [
-  { key: 'calendario', label: 'Calendário', icon: Calendar },
+  { key: 'calendario', label: 'Horário', icon: Calendar },
   { key: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
   { key: 'professores', label: 'Professores', icon: Users },
   { key: 'disciplinas', label: 'Disciplinas', icon: GraduationCap },
   { key: 'turmas', label: 'Turmas', icon: Settings },
-  { key: 'grade', label: 'Grade Curricular', icon: Clock },
+  { key: 'grade', label: 'Editar Horários', icon: Clock },
   { key: 'emails', label: 'E-mails', icon: Mail },
 ];
 
