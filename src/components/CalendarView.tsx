@@ -95,7 +95,7 @@ export function CalendarView({ store }: { store: Store }) {
   return (
     <div>
       <div className="hidden print:block mb-6 text-center">
-        <h1 className="text-2xl font-bold text-black">HorárioRangel — Grade de Horários</h1>
+        <h1 className="text-2xl font-bold text-black">Horário Rangel — Grade de Horários</h1>
         <p className="text-sm text-black mt-1">
           {viewMode === 'semanal' ? 'Visão Semanal — Segunda a Sexta' : selectedDayFull}
         </p>
