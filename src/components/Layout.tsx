@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock } from 'lucide-react';
+import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock, BookOpen } from 'lucide-react';
 import type { Role } from '@/types';
 import type { Store } from '@/lib/store';
 import { PasswordModal } from '@/components/PasswordModal';
 
-export type AdminView = 'calendario' | 'estatisticas' | 'professores' | 'disciplinas' | 'turmas' | 'grade' | 'emails';
+export type AdminView = 'calendario' | 'estatisticas' | 'professores' | 'disciplinas' | 'turmas' | 'horario-turmas' | 'grade' | 'emails';
 
 interface LayoutProps {
   store: Store;
@@ -19,6 +19,7 @@ const ADMIN_NAV: { key: AdminView; label: string; icon: typeof Calendar }[] = [
   { key: 'professores', label: 'Professores', icon: Users },
   { key: 'disciplinas', label: 'Disciplinas', icon: GraduationCap },
   { key: 'turmas', label: 'Turmas', icon: Settings },
+  { key: 'horario-turmas', label: 'Horário por Turma', icon: BookOpen },
   { key: 'grade', label: 'Editar Horários', icon: Clock },
   { key: 'emails', label: 'E-mails', icon: Mail },
 ];

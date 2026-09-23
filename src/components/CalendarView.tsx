@@ -94,8 +94,6 @@ export function CalendarView({ store }: { store: Store }) {
 
   return (
     <div>
-        return (
-    <div>
       {/* Estilo secreto para forçar a impressão em apenas uma página A4 */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
@@ -131,8 +129,6 @@ export function CalendarView({ store }: { store: Store }) {
       `}} />
 
       {/* Print-only header */}
-      <div className="hidden print:block mb-6 text-center">
-
       <div className="hidden print:block mb-6 text-center">
         <h1 className="text-2xl font-bold text-black">Horário Rangel — Grade de Horários</h1>
         <p className="text-sm text-black mt-1">

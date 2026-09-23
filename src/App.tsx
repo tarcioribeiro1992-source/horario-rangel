@@ -9,6 +9,7 @@ import { ClassesView } from '@/components/ClassesView';
 import { GridView } from '@/components/GridView';
 import { EmailsView } from '@/components/EmailsView';
 import { TeacherDashboard } from '@/components/TeacherDashboard';
+import { ClassDashboard } from '@/components/ClassDashboard';
 import { useStore } from '@/lib/store';
 
 function AppContent() {
@@ -34,6 +35,9 @@ function AppContent() {
         break;
       case 'turmas':
         content = <ClassesView store={store} />;
+        break;
+      case 'horario-turmas':
+        content = <ClassDashboard store={store} />;
         break;
       case 'grade':
         content = <GridView store={store} />;
