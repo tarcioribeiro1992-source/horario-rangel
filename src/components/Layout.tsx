@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock, BookOpen } from 'lucide-react';
+import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock, BookOpen, ChevronDown, FolderOpen } from 'lucide-react';
 import type { Role } from '@/types';
 import type { Store } from '@/lib/store';
 import { PasswordModal } from '@/components/PasswordModal';
@@ -13,11 +13,22 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-const ADMIN_NAV: { key: AdminView; label: string; icon: typeof Calendar }[] = [
+type NavLeaf = { key: AdminView; label: string; icon: typeof Calendar };
+type NavGroup = { group: true; label: string; icon: typeof Calendar; items: NavLeaf[] };
+type NavItem = NavLeaf | NavGroup;
+
+const ADMIN_NAV: NavItem[] = [
   { key: 'calendario', label: 'Horário', icon: Calendar },
   { key: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
-  { key: 'professores', label: 'Professores', icon: Users },
-  { key: 'disciplinas', label: 'Disciplinas', icon: GraduationCap },
+  {
+    group: true,
+    label: 'Cadastros',
+    icon: FolderOpen,
+    items: [
+      { key: 'professores', label: 'Professores', icon: Users },
+      { key: 'disciplinas', label: 'Disciplinas', icon: GraduationCap },
+    ],
+  },
   { key: 'turmas', label: 'Turmas', icon: Settings },
   { key: 'horario-turmas', label: 'Horário por Turma', icon: BookOpen },
   { key: 'grade', label: 'Editar Horários', icon: Clock },
@@ -28,6 +39,7 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
   const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId } = store;
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   function handleGestaoClick() {
     if (role !== 'gestao') {
@@ -38,6 +50,10 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
   function handlePasswordSuccess() {
     setPasswordOpen(false);
     setRole('gestao');
+  }
+
+  function isGroupActive(group: NavGroup) {
+    return group.items.some((item) => item.key === adminView);
   }
 
   return (
@@ -101,6 +117,58 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
           {role === 'gestao' && (
             <nav className="flex items-center gap-1 overflow-x-auto pb-2 -mt-1 scrollbar-thin">
               {ADMIN_NAV.map((item) => {
+                if ('group' in item) {
+                  const GroupIcon = item.icon;
+                  const active = isGroupActive(item);
+                  const isOpen = openGroup === item.label;
+                  return (
+                    <div
+                      key={item.label}
+                      className="relative"
+                      onMouseEnter={() => setOpenGroup(item.label)}
+                      onMouseLeave={() => setOpenGroup(null)}
+                    >
+                      <button
+                        onClick={() => setOpenGroup(isOpen ? null : item.label)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                          active
+                            ? 'bg-sky-50 text-sky-700'
+                            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                        }`}
+                      >
+                        <GroupIcon className="w-4 h-4" />
+                        {item.label}
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isOpen && (
+                        <div className="absolute top-full left-0 mt-1 min-w-[180px] bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-[slideIn_0.15s_ease-out]">
+                          {item.items.map((sub) => {
+                            const SubIcon = sub.icon;
+                            return (
+                              <button
+                                key={sub.key}
+                                onClick={() => {
+                                  setAdminView(sub.key);
+                                  setOpenGroup(null);
+                                }}
+                                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors text-left ${
+                                  adminView === sub.key
+                                    ? 'text-sky-700 bg-sky-50'
+                                    : 'text-slate-600 hover:bg-slate-50'
+                                }`}
+                              >
+                                <SubIcon className="w-4 h-4 flex-shrink-0" />
+                                {sub.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 const Icon = item.icon;
                 return (
                   <button
