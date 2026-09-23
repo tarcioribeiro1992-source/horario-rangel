@@ -9,6 +9,7 @@ import { ClassesView } from '@/components/ClassesView';
 import { GridView } from '@/components/GridView';
 import { EmailsView } from '@/components/EmailsView';
 import { TeacherDashboard } from '@/components/TeacherDashboard';
+import { ClassDashboard } from '@/components/ClassDashboard'; // << Importação da nova tela
 import { useStore } from '@/lib/store';
 
 function AppContent() {
@@ -18,6 +19,8 @@ function AppContent() {
   let content;
   if (store.role === 'professor') {
     content = <TeacherDashboard store={store} />;
+  } else if (store.role === 'aluno') {
+    content = <ClassDashboard store={store} />; // << Exibe a tela do aluno
   } else {
     switch (adminView) {
       case 'calendario':
@@ -58,3 +61,4 @@ export default function App() {
     </ToastProvider>
   );
 }
+
