@@ -24,9 +24,8 @@ const ADMIN_NAV: { key: AdminView; label: string; icon: typeof Calendar }[] = [
 ];
 
 export function Layout({ store, adminView, setAdminView, children }: LayoutProps) {
-  const { role, setRole, teachers, classes, selectedTeacherId, setSelectedTeacherId } = store;
+  const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId } = store;
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId);
-  const selectedClass = classes.find((c) => c.id === selectedTeacherId);
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   function handleGestaoClick() {
@@ -35,9 +34,9 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
     }
   }
 
-  function handleRoleChange(newRole: any) {
-    setRole(newRole);
-    setSelectedTeacherId(''); // Limpa a seleção ao trocar de perfil
+  function handlePasswordSuccess() {
+    setPasswordOpen(false);
+    setRole('gestao');
   }
 
   return (
@@ -46,10 +45,10 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
       <header className="no-print bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-4">
-            {/* Logo */}
+            {/* Logo corrigida e limpa (sem quadrado) */}
             <div className="flex items-center gap-2.5 flex-shrink-0">
               <div className="flex items-center justify-center">
-               <img src="/logo.png" alt="HorárioRangel" className="h-10 w-auto object-contain" />
+                <img src="/logo.png" alt="HorárioRangel" className="h-10 w-auto object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg font-bold text-slate-800 leading-none">HorárioRangel</h1>
@@ -59,63 +58,39 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
 
             {/* Selector and Role Toggle */}
             <div className="flex items-center gap-3">
-              
-              {/* Se for Professor ou Gestão, exibe a lista de professores */}
-              {(role === 'professor' || role === 'gestao') && (
-                <select
-                  value={selectedTeacherId || ''}
-                  onChange={(e) => setSelectedTeacherId(e.target.value)}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
-                >
-                  <option value="">👇 Escolha seu nome aqui</option>
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {role === 'gestao' ? `Simular: ${t.name}` : t.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Se for Aluno, exibe a lista de turmas */}
-              {role === 'aluno' && (
-                <select
-                  value={selectedTeacherId || ''}
-                  onChange={(e) => setSelectedTeacherId(e.target.value)}
-                  className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
-                >
-                  <option value="">👇 Escolha sua turma aqui</option>
-                  {classes.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                value={selectedTeacherId || ''}
+                onChange={(e) => setSelectedTeacherId(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[200px] sm:max-w-xs"
+              >
+                <option value="">👇 Escolha seu nome aqui</option>
+                {teachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {role === 'gestao' ? `Simular: ${t.name}` : t.name}
+                  </option>
+                ))}
+              </select>
 
               <div className="flex items-center bg-slate-100 rounded-lg p-1">
                 <button
                   onClick={handleGestaoClick}
-                  className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                    role === 'gestao' ? 'bg-white text-sky-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    role === 'gestao'
+                      ? 'bg-white text-sky-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   Gestão
                 </button>
                 <button
-                  onClick={() => handleRoleChange('professor')}
-                  className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                    role === 'professor' ? 'bg-white text-teal-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  onClick={() => setRole('professor')}
+                  className={`px-3 sm:px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    role === 'professor'
+                      ? 'bg-white text-teal-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
                   Professor
-                </button>
-                <button
-                  onClick={() => handleRoleChange('aluno')}
-                  className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
-                    role === 'aluno' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  Aluno
                 </button>
               </div>
             </div>
@@ -130,7 +105,11 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
                   <button
                     key={item.key}
                     onClick={() => setAdminView(item.key)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                      adminView === item.key
+                        ? 'bg-sky-50 text-sky-700'
+                        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                    }`}
                   >
                     <Icon className="w-4 h-4" />
                     {item.label}
@@ -148,12 +127,6 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
           <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
             <span>Visualizando como:</span>
             <span className="font-semibold text-slate-700">{selectedTeacher.name}</span>
-          </div>
-        )}
-        {role === 'aluno' && selectedClass && (
-          <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
-            <span>Visualizando Turma:</span>
-            <span className="font-semibold text-slate-700">{selectedClass.name}</span>
           </div>
         )}
         {children}
