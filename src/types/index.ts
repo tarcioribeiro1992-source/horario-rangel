@@ -1,4 +1,4 @@
-export type Role = 'gestao' | 'professor';
+export type Role = 'gestao' | 'professor' | 'aluno';
 
 export type Weekday = 'segunda' | 'terca' | 'quarta' | 'quinta' | 'sexta';
 
