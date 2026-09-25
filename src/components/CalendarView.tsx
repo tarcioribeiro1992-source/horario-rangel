@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, AlertTriangle, Printer } from 'lucide-react';
+import { Plus, AlertTriangle, Printer, Trash2 } from 'lucide-react';
 import type { Store } from '@/lib/store';
 import type { Weekday } from '@/types';
 import { TIME_BLOCKS, WEEKDAYS } from '@/lib/timeBlocks';
@@ -17,7 +17,7 @@ export function CalendarView({ store }: { store: Store }) {
   const [selectedDay, setSelectedDay] = useState<Weekday>('segunda');
   const { showToast } = useToast();
 
-  const { grid, occurrences, teachers, subjects, classes } = store;
+  const { grid, occurrences, teachers, subjects, classes, deleteOccurrence } = store;
 
   const normalizeKey = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -258,10 +258,23 @@ export function CalendarView({ store }: { store: Store }) {
                       })}
 
                       {occs.map((occ) => (
-                        <div key={occ.id} className={`p-1 border-l-4 rounded ${occTypeColors[occ.type] ?? 'bg-slate-50 border-slate-300'} flex flex-col text-[11px]`}>
-                          <div className="flex items-center gap-1 font-bold mb-0.5 text-xs">
-                            <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{occ.type}</span>
+                        <div key={occ.id} className={`group/occ p-1 border-l-4 rounded ${occTypeColors[occ.type] ?? 'bg-slate-50 border-slate-300'} flex flex-col text-[11px]`}>
+                          <div className="flex items-center justify-between gap-1 font-bold mb-0.5 text-xs">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{occ.type}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (confirm('Excluir esta ocorrência?')) {
+                                  deleteOccurrence(occ.id);
+                                }
+                              }}
+                              className="no-print w-5 h-5 rounded-full bg-white/60 hover:bg-red-100 text-slate-400 hover:text-red-600 flex items-center justify-center transition-all flex-shrink-0"
+                              title="Excluir ocorrência"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
                           <div className="truncate">Prof: {getTeacher(occ.teacherId)?.name ?? '—'}</div>
                           <div className="truncate">Turma: {getClass(occ.classId)?.name ?? '—'}</div>

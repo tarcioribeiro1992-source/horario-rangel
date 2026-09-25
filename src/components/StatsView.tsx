@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
-import { TrendingUp, AlertCircle, Users, Calendar } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { TrendingUp, AlertCircle, Users, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Store } from '@/lib/store';
 import type { OccurrenceType } from '@/types';
+import { TIME_BLOCKS, WEEKDAYS } from '@/lib/timeBlocks';
 
 const TYPE_COLORS: Record<string, string> = {
   Falta: '#EF4444',
@@ -14,7 +15,8 @@ const TYPE_COLORS: Record<string, string> = {
 const TYPE_LABELS: OccurrenceType[] = ['Falta', 'Formação', 'Saída Cedo', 'Palestra Escolar', 'Projeto'];
 
 export function StatsView({ store }: { store: Store }) {
-  const { occurrences, teachers } = store;
+  const { occurrences, teachers, classes } = store;
+  const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
 
   // Teacher absence ranking
   const teacherRanking = useMemo(() => {
@@ -181,6 +183,72 @@ export function StatsView({ store }: { store: Store }) {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Per-teacher occurrence list */}
+      <div className="mt-6 bg-white rounded-xl border border-slate-200 p-5">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4">Ocorrências por Professor</h3>
+        <div className="divide-y divide-slate-100">
+          {teachers.map((t) => {
+            const teacherOccs = occurrences.filter((o) => o.teacherId === t.id);
+            if (teacherOccs.length === 0) return null;
+            const isExpanded = expandedTeacher === t.id;
+            return (
+              <div key={t.id} className="py-2">
+                <button
+                  onClick={() => setExpandedTeacher(isExpanded ? null : t.id)}
+                  className="w-full flex items-center gap-2 text-left"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  )}
+                  <span className="text-sm font-medium text-slate-700">{t.name}</span>
+                  <span className="ml-auto text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {teacherOccs.length}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="mt-2 ml-6 space-y-1.5">
+                    {teacherOccs.map((occ) => {
+                      const block = TIME_BLOCKS.find((b) => b.id === occ.blockId);
+                      const day = WEEKDAYS.find((d) => d.key === occ.weekday);
+                      const cls = classes.find((c) => c.id === occ.classId || c.name === occ.classId);
+                      return (
+                        <div
+                          key={occ.id}
+                          className="flex items-center gap-2 text-xs bg-slate-50 rounded-lg px-3 py-2"
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: TYPE_COLORS[occ.type] ?? '#94a3b8' }}
+                          />
+                          <span className="font-medium text-slate-700">{occ.type}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500">{day?.short ?? '—'}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500">{block?.label ?? '—'}</span>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500">{cls?.name ?? '—'}</span>
+                          {occ.note && (
+                            <>
+                              <span className="text-slate-400">·</span>
+                              <span className="text-slate-400 truncate">{occ.note}</span>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {occurrences.length === 0 && (
+            <p className="text-sm text-slate-400 py-4 text-center">Nenhuma ocorrência registrada.</p>
+          )}
         </div>
       </div>
     </div>
