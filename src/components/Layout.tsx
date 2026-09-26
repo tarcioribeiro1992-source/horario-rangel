@@ -21,6 +21,8 @@ const ADMIN_NAV: NavItem[] = [
   { key: 'calendario', label: 'Horário Completo', icon: Calendar },
   { key: 'horario-turmas', label: 'Horário por Turma', icon: BookOpen },
   { key: 'grade', label: 'Editar Horários', icon: Clock },
+  { key: 'professores', label: 'Professores', icon: Users },
+  { key: 'disciplinas', label: 'Disciplinas', icon: BookOpen },
   { key: 'turmas', label: 'Turmas', icon: Settings },
   { key: 'emails', label: 'E-mails', icon: Mail },
   { key: 'estatisticas', label: 'Estatísticas', icon: BarChart3 },
