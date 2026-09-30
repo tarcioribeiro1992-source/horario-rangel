@@ -111,7 +111,21 @@ export function TeacherDashboard({ store }: { store: Store }) {
                   ))}
                 </div>
                 {/* Blocks */}
-                {TIME_BLOCKS.filter((b) => !b.isBreak).map((block) => (
+                {TIME_BLOCKS.map((block) => {
+                  if (block.isBreak) {
+                    return (
+                      <div key={block.id} className="grid grid-cols-[100px_repeat(5,1fr)] gap-1.5 mb-1.5">
+                        <div className="flex items-center justify-center text-[10px] text-slate-400 font-medium bg-amber-50 rounded-lg py-1.5 border border-dashed border-amber-200">
+                          {block.start}
+                        </div>
+                        <div className="col-span-5 flex items-center justify-center text-[10px] text-amber-600 font-medium bg-amber-50 rounded-lg py-1.5 border border-dashed border-amber-200">
+                          {block.label}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
                   <div key={block.id} className="grid grid-cols-[100px_repeat(5,1fr)] gap-1.5 mb-1.5">
                     <div className="flex flex-col items-center justify-center bg-slate-50 rounded-lg py-1 border border-slate-100">
                       <span className="text-[11px] font-bold text-slate-600">{block.label}</span>
@@ -165,7 +179,8 @@ export function TeacherDashboard({ store }: { store: Store }) {
                       );
                     })}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
