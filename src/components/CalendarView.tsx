@@ -53,6 +53,7 @@ export function CalendarView({ store }: { store: Store }) {
     'Saída Cedo': 'bg-amber-50 border-amber-300 text-amber-700',
     'Palestra Escolar': 'bg-sky-50 border-sky-300 text-sky-700',
     Projeto: 'bg-emerald-50 border-emerald-300 text-emerald-700',
+    Permuta: 'bg-cyan-50 border-cyan-300 text-cyan-700',
   };
 
   function handleQuickAdd(weekday: Weekday, blockId: number) {

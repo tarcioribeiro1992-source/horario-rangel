@@ -10,9 +10,10 @@ const TYPE_COLORS: Record<string, string> = {
   'Saída Cedo': '#F59E0B',
   'Palestra Escolar': '#0EA5E9',
   Projeto: '#10B981',
+  Permuta: '#06B6D4',
 };
 
-const TYPE_LABELS: OccurrenceType[] = ['Falta', 'Formação', 'Saída Cedo', 'Palestra Escolar', 'Projeto'];
+const TYPE_LABELS: OccurrenceType[] = ['Falta', 'Formação', 'Saída Cedo', 'Palestra Escolar', 'Projeto', 'Permuta'];
 
 export function StatsView({ store }: { store: Store }) {
   const { occurrences, teachers, classes } = store;

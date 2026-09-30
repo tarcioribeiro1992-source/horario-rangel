@@ -7,7 +7,8 @@ export type OccurrenceType =
   | 'Formação'
   | 'Saída Cedo'
   | 'Palestra Escolar'
-  | 'Projeto';
+  | 'Projeto'
+  | 'Permuta';
 
 export interface Teacher {
   id: string;

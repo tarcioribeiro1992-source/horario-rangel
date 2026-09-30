@@ -143,6 +143,7 @@ export function OccurrenceModal({ open, onClose, onSaved, preselect, store }: Oc
               <option value="Saída Cedo">Saída Cedo</option>
               <option value="Palestra Escolar">Palestra Escolar</option>
               <option value="Projeto">Projeto</option>
+              <option value="Permuta">Permuta</option>
             </select>
           </div>
 

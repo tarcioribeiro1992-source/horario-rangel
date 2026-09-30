@@ -9,6 +9,7 @@ const occTypeColors: Record<string, string> = {
   'Saída Cedo': 'bg-amber-50 border-amber-400 text-amber-700',
   'Palestra Escolar': 'bg-sky-50 border-sky-400 text-sky-700',
   Projeto: 'bg-emerald-50 border-emerald-400 text-emerald-700',
+  Permuta: 'bg-cyan-50 border-cyan-400 text-cyan-700',
 };
 
 export function ClassDashboard({ store }: { store: Store }) {
