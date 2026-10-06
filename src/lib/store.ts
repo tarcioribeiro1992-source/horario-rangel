@@ -79,6 +79,8 @@ export function useStore() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
   const [activeScheduleId, setActiveScheduleId] = useState<string>(REGULAR_SCHEDULE_ID);
   const [cloudSynced, setCloudSynced] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const syncLock = useRef(false);
 
   // Sincronização inicial completa com o Supabase
@@ -216,8 +218,11 @@ export function useStore() {
             })),
           ).then(({ error }) => { if (error) console.error('Erro ao subir ocorrências locais:', error); });
         }
-      } catch (err) {
-        console.warn('Usando modo local offline.', err);
+      } catch (err: any) {
+        console.error('Erro de sincronização:', err);
+        setSyncError(err?.message || 'Falha ao conectar com a nuvem');
+      } finally {
+        setSyncing(false);
       }
     }
     syncWithCloud();
@@ -592,6 +597,74 @@ export function useStore() {
     supabase.from('ocorrencias').delete().eq('id', id).then();
   }, []);
 
+  const forceSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const localDb = loadDB();
+
+      // Push ALL local data to cloud (upsert style: insert if not exists)
+      if (localDb.teachers.length > 0) {
+        const { error } = await supabase.from('professores').upsert(
+          localDb.teachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone })),
+          { onConflict: 'id' },
+        );
+        if (error) console.error('forceSync professores:', error);
+      }
+      if (localDb.subjects.length > 0) {
+        const { error } = await supabase.from('disciplinas').upsert(
+          localDb.subjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color })),
+          { onConflict: 'id' },
+        );
+        if (error) console.error('forceSync disciplinas:', error);
+      }
+      if (localDb.classes.length > 0) {
+        const { error } = await supabase.from('turmas').upsert(
+          localDb.classes.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade })),
+          { onConflict: 'id' },
+        );
+        if (error) console.error('forceSync turmas:', error);
+      }
+      const localSchedules = localDb.schedules.filter((s) => s.id !== REGULAR_SCHEDULE_ID);
+      if (localSchedules.length > 0) {
+        const { error } = await supabase.from('versoes_horario').upsert(
+          localSchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false })),
+          { onConflict: 'id' },
+        );
+        if (error) console.error('forceSync versoes:', error);
+      }
+      if (localDb.grid.length > 0) {
+        const { error } = await supabase.from('grade_horaria').upsert(
+          localDb.grid.map((s) => ({
+            id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
+            professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId,
+            versao_id: s.scheduleId || REGULAR_SCHEDULE_ID,
+          })),
+          { onConflict: 'id' },
+        );
+        if (error) console.error('forceSync grade:', error);
+      }
+      if (localDb.occurrences.length > 0) {
+        const { error } = await supabase.from('ocorrencias').upsert(
+          localDb.occurrences.map((o) => ({
+            id: o.id, data: o.weekday || '', bloco_horario: String(o.blockId),
+            tipo: o.type, professor_id: o.teacherId || 'sem-professor', motivo: o.note || '',
+          })),
+          { onConflict: 'id' },
+        );
+        if (error) console.error('forceSync ocorrencias:', error);
+      }
+
+      setCloudSynced(true);
+      setSyncError(null);
+    } catch (err: any) {
+      console.error('forceSync error:', err);
+      setSyncError(err?.message || 'Falha ao sincronizar');
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
   const resetDB = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setDb(loadDB());
@@ -615,6 +688,9 @@ export function useStore() {
     activeScheduleId,
     setActiveScheduleId,
     cloudSynced,
+    syncError,
+    syncing,
+    forceSync,
     addTeacher,
     updateTeacher,
     deleteTeacher,
