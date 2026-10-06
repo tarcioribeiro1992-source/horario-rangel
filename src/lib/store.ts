@@ -97,71 +97,125 @@ export function useStore() {
           supabase.from('versoes_horario').select('*'),
         ]);
 
-        const updatedDb: DB = {
-          teachers: [],
-          subjects: [],
-          classes: [],
-          grid: [],
-          occurrences: [],
-          emailLogs: [],
-          schedules: [
-            { id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString() },
-          ],
-        };
+        const localDb = loadDB();
 
-        if (tRes.data && tRes.data.length > 0) {
-          updatedDb.teachers = tRes.data.map((t: any) => ({
+        // Build cloud data maps
+        const cloudTeacherIds = new Set((tRes.data || []).map((t: any) => t.id));
+        const cloudSubjectIds = new Set((sRes.data || []).map((s: any) => s.id));
+        const cloudClassIds = new Set((cRes.data || []).map((c: any) => c.id));
+        const cloudScheduleIds = new Set((vRes.data || []).map((v: any) => v.id));
+        const cloudGridIds = new Set((gRes.data || []).map((g: any) => g.id));
+        const cloudOccIds = new Set((oRes.data || []).map((o: any) => o.id));
+
+        // Merge: start with cloud data, then add local-only items
+        const mergedTeachers = [
+          ...(tRes.data || []).map((t: any) => ({
             id: t.id, name: t.nome, email: t.email || '', phone: t.telefone || '', color: '#2563eb',
-          }));
-        }
-        if (sRes.data && sRes.data.length > 0) {
-          updatedDb.subjects = sRes.data.map((s: any) => ({
+          })),
+          ...localDb.teachers.filter((t) => !cloudTeacherIds.has(t.id)),
+        ];
+        const mergedSubjects = [
+          ...(sRes.data || []).map((s: any) => ({
             id: s.id, name: s.nome, color: s.cor || '#2563eb',
-          }));
-        }
-        if (cRes.data && cRes.data.length > 0) {
-          updatedDb.classes = cRes.data.map((c: any) => ({
+          })),
+          ...localDb.subjects.filter((s) => !cloudSubjectIds.has(s.id)),
+        ];
+        const mergedClasses = [
+          ...(cRes.data || []).map((c: any) => ({
             id: c.id, name: c.nome, grade: c.ano_serie || '',
-          }));
+          })),
+          ...localDb.classes.filter((c) => !cloudClassIds.has(c.id)),
+        ];
+        const mergedSchedules: ScheduleVersion[] = [
+          ...(vRes.data || []).map((v: any) => ({
+            id: v.id, name: v.nome, isRegular: v.is_regular || false,
+            active: false, createdAt: v.created_at || new Date().toISOString(),
+          })),
+          ...localDb.schedules.filter((s) => !cloudScheduleIds.has(s.id)),
+        ];
+        if (!mergedSchedules.some((s) => s.id === REGULAR_SCHEDULE_ID)) {
+          mergedSchedules.unshift({
+            id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString(),
+          });
         }
-        if (gRes.data && gRes.data.length > 0) {
-          updatedDb.grid = gRes.data.map((g: any) => ({
+        const mergedGrid = [
+          ...(gRes.data || []).map((g: any) => ({
             id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario),
             teacherId: g.professor_id || 'sem-professor', subjectId: g.disciplina || '',
             classId: g.turma || '', scheduleId: g.versao_id || REGULAR_SCHEDULE_ID,
-          }));
-        }
-        if (oRes.data && oRes.data.length > 0) {
-          updatedDb.occurrences = oRes.data.map((o: any) => ({
+          })),
+          ...localDb.grid.filter((s) => !cloudGridIds.has(s.id)),
+        ];
+        const mergedOccurrences = [
+          ...(oRes.data || []).map((o: any) => ({
             id: o.id, weekday: o.data, blockId: Number(o.bloco_horario),
             type: o.tipo, teacherId: o.professor_id || 'sem-professor',
             classId: '', note: o.motivo || '', substituteTeacherId: null,
             createdAt: o.created_at || new Date().toISOString(),
-          }));
-        }
-        if (vRes.data && vRes.data.length > 0) {
-          updatedDb.schedules = vRes.data.map((v: any) => ({
-            id: v.id, name: v.nome, isRegular: v.is_regular || false,
-            active: false, createdAt: v.created_at || new Date().toISOString(),
-          }));
-          if (!updatedDb.schedules.some((s) => s.id === REGULAR_SCHEDULE_ID)) {
-            updatedDb.schedules.unshift({
-              id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString(),
-            });
-          }
-        }
+          })),
+          ...localDb.occurrences.filter((o) => !cloudOccIds.has(o.id)),
+        ];
 
-        // Preserve emailLogs from local storage since they're not in Supabase
-        const localRaw = localStorage.getItem(STORAGE_KEY);
-        if (localRaw) {
-          try {
-            const localParsed = JSON.parse(localRaw) as DB;
-            updatedDb.emailLogs = localParsed.emailLogs || [];
-          } catch { /* ignore */ }
-        }
-
-        setDb(updatedDb);
+        setDb({
+          teachers: mergedTeachers,
+          subjects: mergedSubjects,
+          classes: mergedClasses,
+          grid: mergedGrid,
+          occurrences: mergedOccurrences,
+          emailLogs: localDb.emailLogs || [],
+          schedules: mergedSchedules,
+        });
         setCloudSynced(true);
+
+        // Push local-only items up to the cloud so other devices can see them
+        const localOnlySchedules = localDb.schedules.filter((s) => !cloudScheduleIds.has(s.id) && s.id !== REGULAR_SCHEDULE_ID);
+        if (localOnlySchedules.length > 0) {
+          supabase.from('versoes_horario').insert(
+            localOnlySchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false })),
+          ).then(({ error }) => { if (error) console.error('Erro ao subir versões locais:', error); });
+        }
+
+        const localOnlyGrid = localDb.grid.filter((s) => !cloudGridIds.has(s.id));
+        if (localOnlyGrid.length > 0) {
+          supabase.from('grade_horaria').insert(
+            localOnlyGrid.map((s) => ({
+              id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
+              professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId,
+              versao_id: s.scheduleId || REGULAR_SCHEDULE_ID,
+            })),
+          ).then(({ error }) => { if (error) console.error('Erro ao subir aulas locais:', error); });
+        }
+
+        const localOnlyTeachers = localDb.teachers.filter((t) => !cloudTeacherIds.has(t.id));
+        if (localOnlyTeachers.length > 0) {
+          supabase.from('professores').insert(
+            localOnlyTeachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone })),
+          ).then(({ error }) => { if (error) console.error('Erro ao subir professores locais:', error); });
+        }
+
+        const localOnlySubjects = localDb.subjects.filter((s) => !cloudSubjectIds.has(s.id));
+        if (localOnlySubjects.length > 0) {
+          supabase.from('disciplinas').insert(
+            localOnlySubjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color })),
+          ).then(({ error }) => { if (error) console.error('Erro ao subir disciplinas locais:', error); });
+        }
+
+        const localOnlyClasses = localDb.classes.filter((c) => !cloudClassIds.has(c.id));
+        if (localOnlyClasses.length > 0) {
+          supabase.from('turmas').insert(
+            localOnlyClasses.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade })),
+          ).then(({ error }) => { if (error) console.error('Erro ao subir turmas locais:', error); });
+        }
+
+        const localOnlyOccs = localDb.occurrences.filter((o) => !cloudOccIds.has(o.id));
+        if (localOnlyOccs.length > 0) {
+          supabase.from('ocorrencias').insert(
+            localOnlyOccs.map((o) => ({
+              id: o.id, data: o.weekday || '', bloco_horario: String(o.blockId),
+              tipo: o.type, professor_id: o.teacherId || 'sem-professor', motivo: o.note || '',
+            })),
+          ).then(({ error }) => { if (error) console.error('Erro ao subir ocorrências locais:', error); });
+        }
       } catch (err) {
         console.warn('Usando modo local offline.', err);
       }
@@ -206,10 +260,18 @@ export function useStore() {
             classId: '', note: o.motivo || '', substituteTeacherId: null,
             createdAt: o.created_at || new Date().toISOString(),
           }));
-          if (vRes.data && vRes.data.length > 0) updatedDb.schedules = vRes.data.map((v: any) => ({
-            id: v.id, name: v.nome, isRegular: v.is_regular || false,
-            active: false, createdAt: v.created_at || new Date().toISOString(),
-          }));
+          if (vRes.data) {
+            const cloudSchedules = vRes.data.map((v: any) => ({
+              id: v.id, name: v.nome, isRegular: v.is_regular || false,
+              active: false, createdAt: v.created_at || new Date().toISOString(),
+            }));
+            if (!cloudSchedules.some((s: ScheduleVersion) => s.id === REGULAR_SCHEDULE_ID)) {
+              cloudSchedules.unshift({
+                id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString(),
+              });
+            }
+            updatedDb.schedules = cloudSchedules;
+          }
           return updatedDb;
         });
       } catch (err) {
@@ -357,7 +419,8 @@ export function useStore() {
       ...prev,
       schedules: [...prev.schedules, newSchedule],
     }));
-    supabase.from('versoes_horario').insert([{ id: newId, nome: name, is_regular: false }]).then();
+    supabase.from('versoes_horario').insert([{ id: newId, nome: name, is_regular: false }])
+      .then(({ error }) => { if (error) console.error('Erro ao salvar versão no Supabase:', error); });
     return newId;
   }, []);
 
@@ -366,7 +429,8 @@ export function useStore() {
       ...prev,
       schedules: prev.schedules.map((s) => (s.id === id ? { ...s, name } : s)),
     }));
-    supabase.from('versoes_horario').update({ nome: name }).eq('id', id).then();
+    supabase.from('versoes_horario').update({ nome: name }).eq('id', id)
+      .then(({ error }) => { if (error) console.error('Erro ao renomear versão:', error); });
   }, []);
 
   const deleteSchedule = useCallback((id: string) => {
@@ -376,8 +440,10 @@ export function useStore() {
       schedules: prev.schedules.filter((s) => s.id !== id),
       grid: prev.grid.filter((s) => s.scheduleId !== id),
     }));
-    supabase.from('versoes_horario').delete().eq('id', id).then();
-    supabase.from('grade_horaria').delete().eq('versao_id', id).then();
+    supabase.from('versoes_horario').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.error('Erro ao excluir versão:', error); });
+    supabase.from('grade_horaria').delete().eq('versao_id', id)
+      .then(({ error }) => { if (error) console.error('Erro ao excluir aulas da versão:', error); });
     setActiveScheduleId((prev) => (prev === id ? REGULAR_SCHEDULE_ID : prev));
   }, []);
 
@@ -403,20 +469,23 @@ export function useStore() {
         grid: [...prev.grid, ...clonedSlots],
       };
     });
-    supabase.from('versoes_horario').insert([{ id: newId, nome: newName, is_regular: false }]).then();
-    // Insert cloned slots into Supabase
-    setDb((prev) => {
-      const cloned = prev.grid.filter((s) => s.scheduleId === newId);
-      if (cloned.length > 0) {
-        supabase.from('grade_horaria').insert(
-          cloned.map((s) => ({
-            id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
-            professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId, versao_id: newId,
-          })),
-        ).then();
-      }
-      return prev;
-    });
+    supabase.from('versoes_horario').insert([{ id: newId, nome: newName, is_regular: false }])
+      .then(({ error }) => { if (error) console.error('Erro ao duplicar versão:', error); });
+    // Insert cloned slots into Supabase — use a microtask to ensure state has settled
+    setTimeout(() => {
+      setDb((prev) => {
+        const cloned = prev.grid.filter((s) => s.scheduleId === newId);
+        if (cloned.length > 0) {
+          supabase.from('grade_horaria').insert(
+            cloned.map((s) => ({
+              id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
+              professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId, versao_id: newId,
+            })),
+          ).then(({ error }) => { if (error) console.error('Erro ao clonar aulas:', error); });
+        }
+        return prev;
+      });
+    }, 0);
     return newId;
   }, []);
 
