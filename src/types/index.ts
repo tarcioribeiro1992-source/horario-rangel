@@ -37,6 +37,15 @@ export interface GridSlot {
   teacherId: string;
   subjectId: string;
   classId: string;
+  scheduleId?: string;
+}
+
+export interface ScheduleVersion {
+  id: string;
+  name: string;
+  isRegular: boolean;
+  active: boolean;
+  createdAt: string;
 }
 
 export interface Occurrence {

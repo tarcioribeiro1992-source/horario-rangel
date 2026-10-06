@@ -5,7 +5,7 @@ import type { Weekday } from '@/types';
 import { TIME_BLOCKS, WEEKDAYS, formatBlockTime } from '@/lib/timeBlocks';
 
 export function GridView({ store }: { store: Store }) {
-  const { grid, teachers, subjects, classes, addGridSlot, deleteGridSlot, checkCollisions } = store;
+  const { grid, teachers, subjects, classes, addGridSlot, deleteGridSlot, checkCollisions, activeScheduleId, schedules } = store;
   const [weekday, setWeekday] = useState<Weekday>('segunda');
   const [blockId, setBlockId] = useState<number>(1);
   const [teacherId, setTeacherId] = useState('');
@@ -34,7 +34,7 @@ export function GridView({ store }: { store: Store }) {
    function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!subjectId || !classId) return; 
-    addGridSlot(weekday, blockId, teacherId ? teacherId : 'sem-professor', subjectId, classId);
+    addGridSlot(weekday, blockId, teacherId ? teacherId : 'sem-professor', subjectId, classId, activeScheduleId);
     setTeacherId('');
     setSubjectId('');
     setClassId('');
@@ -45,7 +45,9 @@ export function GridView({ store }: { store: Store }) {
     <div>
       <div className="mb-5">
         <h2 className="text-xl font-bold text-slate-800">Grade Curricular</h2>
-        <p className="text-sm text-slate-500 mt-0.5">Monte a grade regular de aulas da semana</p>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Editando: <span className="font-semibold text-sky-600">{schedules.find((s) => s.id === activeScheduleId)?.name ?? 'Grade Regular'}</span>
+        </p>
       </div>
 
       {/* Add Form */}

@@ -8,6 +8,7 @@ import { SubjectsView } from '@/components/SubjectsView';
 import { ClassesView } from '@/components/ClassesView';
 import { GridView } from '@/components/GridView';
 import { EmailsView } from '@/components/EmailsView';
+import { ScheduleVersionsView } from '@/components/ScheduleVersionsView';
 import { TeacherDashboard } from '@/components/TeacherDashboard';
 import { ClassDashboard } from '@/components/ClassDashboard';
 import { useStore } from '@/lib/store';
@@ -44,6 +45,9 @@ function AppContent() {
         break;
       case 'emails':
         content = <EmailsView store={store} />;
+        break;
+      case 'versoes':
+        content = <ScheduleVersionsView store={store} />;
         break;
     }
   }

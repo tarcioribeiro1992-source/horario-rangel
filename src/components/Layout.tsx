@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock, BookOpen, ChevronDown, FolderOpen } from 'lucide-react';
+import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock, BookOpen, ChevronDown, FolderOpen, Layers } from 'lucide-react';
 import type { Role } from '@/types';
 import type { Store } from '@/lib/store';
 import { PasswordModal } from '@/components/PasswordModal';
 
-export type AdminView = 'calendario' | 'estatisticas' | 'professores' | 'disciplinas' | 'turmas' | 'horario-turmas' | 'grade' | 'emails';
+export type AdminView = 'calendario' | 'estatisticas' | 'professores' | 'disciplinas' | 'turmas' | 'horario-turmas' | 'grade' | 'emails' | 'versoes';
 
 interface LayoutProps {
   store: Store;
@@ -21,6 +21,7 @@ const ADMIN_NAV: NavItem[] = [
   { key: 'calendario', label: 'Horário Completo', icon: Calendar },
   { key: 'horario-turmas', label: 'Horário por Turma', icon: BookOpen },
   { key: 'grade', label: 'Editar Horários', icon: Clock },
+  { key: 'versoes', label: 'Versões de Horário', icon: Layers },
   { key: 'professores', label: 'Professores', icon: Users },
   { key: 'disciplinas', label: 'Disciplinas', icon: BookOpen },
   { key: 'turmas', label: 'Turmas', icon: Settings },
@@ -29,7 +30,7 @@ const ADMIN_NAV: NavItem[] = [
 ];
 
 export function Layout({ store, adminView, setAdminView, children }: LayoutProps) {
-  const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId } = store;
+  const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId, schedules, activeScheduleId, setActiveScheduleId } = store;
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -105,6 +106,24 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
               </div>
             </div>
           </div>
+
+          {/* Schedule selector (gestao only) */}
+          {role === 'gestao' && schedules.length > 1 && (
+            <div className="flex items-center gap-2 pb-2 -mt-1">
+              <Layers className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <select
+                value={activeScheduleId}
+                onChange={(e) => setActiveScheduleId(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-400 max-w-[260px]"
+              >
+                {schedules.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.isRegular ? ' (regular)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Admin Nav */}
           {role === 'gestao' && (

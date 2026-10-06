@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from './supabase';
 import type {
   Teacher,
@@ -9,6 +9,7 @@ import type {
   EmailLog,
   Role,
   Weekday,
+  ScheduleVersion,
 } from '@/types';
 import {
   SEED_TEACHERS,
@@ -19,7 +20,8 @@ import {
   SEED_EMAIL_LOGS,
 } from '@/lib/seedData';
 
-const STORAGE_KEY = 'horariorangel_db_v1';
+const STORAGE_KEY = 'horariorangel_db_v2';
+const REGULAR_SCHEDULE_ID = 'regular';
 
 interface DB {
   teachers: Teacher[];
@@ -28,12 +30,24 @@ interface DB {
   grid: GridSlot[];
   occurrences: Occurrence[];
   emailLogs: EmailLog[];
+  schedules: ScheduleVersion[];
 }
 
 function loadDB(): DB {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as DB;
+    if (raw) {
+      const parsed = JSON.parse(raw) as DB;
+      if (!parsed.schedules || parsed.schedules.length === 0) {
+        parsed.schedules = [
+          { id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString() },
+        ];
+      }
+      if (!parsed.grid.every((s) => s.scheduleId)) {
+        parsed.grid = parsed.grid.map((s) => ({ ...s, scheduleId: s.scheduleId || REGULAR_SCHEDULE_ID }));
+      }
+      return parsed;
+    }
   } catch {
     // ignore
   }
@@ -41,9 +55,12 @@ function loadDB(): DB {
     teachers: SEED_TEACHERS,
     subjects: SEED_SUBJECTS,
     classes: SEED_CLASSES,
-    grid: SEED_GRID,
+    grid: SEED_GRID.map((s) => ({ ...s, scheduleId: REGULAR_SCHEDULE_ID })),
     occurrences: SEED_OCCURRENCES,
     emailLogs: SEED_EMAIL_LOGS,
+    schedules: [
+      { id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString() },
+    ],
   };
 }
 
@@ -68,6 +85,7 @@ export function useStore() {
   const [db, setDb] = useState<DB>(loadDB);
   const [role, setRole] = useState<Role>('professor');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
+  const [activeScheduleId, setActiveScheduleId] = useState<string>(REGULAR_SCHEDULE_ID);
 
   // Sincronização inicial completa com o Supabase
   useEffect(() => {
@@ -198,13 +216,14 @@ export function useStore() {
   }, []);
 
   const addGridSlot = useCallback(
-    (weekday: Weekday, blockId: number, teacherId: string, subjectId: string, classId: string) => {
+    (weekday: Weekday, blockId: number, teacherId: string, subjectId: string, classId: string, scheduleId?: string) => {
       const newId = uid();
+      const sid = scheduleId || REGULAR_SCHEDULE_ID;
       setDb((prev) => ({
         ...prev,
-        grid: [...prev.grid, { id: newId, weekday, blockId, teacherId, subjectId, classId }],
+        grid: [...prev.grid, { id: newId, weekday, blockId, teacherId, subjectId, classId, scheduleId: sid }],
       }));
-      supabase.from('grade_horaria').insert([{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId }]).then();
+      supabase.from('grade_horaria').insert([{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId, versao_id: sid }]).then();
     },
     [],
   );
@@ -228,7 +247,65 @@ export function useStore() {
     supabase.from('grade_horaria').delete().eq('id', id).then();
   }, []);
 
-    const checkCollisions = useCallback(
+  const addSchedule = useCallback((name: string): string => {
+    const newId = uid();
+    const newSchedule: ScheduleVersion = {
+      id: newId,
+      name,
+      isRegular: false,
+      active: false,
+      createdAt: new Date().toISOString(),
+    };
+    setDb((prev) => ({
+      ...prev,
+      schedules: [...prev.schedules, newSchedule],
+    }));
+    return newId;
+  }, []);
+
+  const renameSchedule = useCallback((id: string, name: string) => {
+    setDb((prev) => ({
+      ...prev,
+      schedules: prev.schedules.map((s) => (s.id === id ? { ...s, name } : s)),
+    }));
+  }, []);
+
+  const deleteSchedule = useCallback((id: string) => {
+    if (id === REGULAR_SCHEDULE_ID) return;
+    setDb((prev) => ({
+      ...prev,
+      schedules: prev.schedules.filter((s) => s.id !== id),
+      grid: prev.grid.filter((s) => s.scheduleId !== id),
+    }));
+    setActiveScheduleId((prev) => (prev === id ? REGULAR_SCHEDULE_ID : prev));
+  }, []);
+
+  const duplicateSchedule = useCallback((sourceId: string, newName: string): string => {
+    const newId = uid();
+    const newSchedule: ScheduleVersion = {
+      id: newId,
+      name: newName,
+      isRegular: false,
+      active: false,
+      createdAt: new Date().toISOString(),
+    };
+    setDb((prev) => {
+      const sourceSlots = prev.grid.filter((s) => (s.scheduleId || REGULAR_SCHEDULE_ID) === sourceId);
+      const clonedSlots = sourceSlots.map((s) => ({
+        ...s,
+        id: uid(),
+        scheduleId: newId,
+      }));
+      return {
+        ...prev,
+        schedules: [...prev.schedules, newSchedule],
+        grid: [...prev.grid, ...clonedSlots],
+      };
+    });
+    return newId;
+  }, []);
+
+  const checkCollisions = useCallback(
     (
       weekday: Weekday,
       blockId: number,
@@ -239,8 +316,12 @@ export function useStore() {
       const collisions: Collision[] = [];
       if (!classId) return collisions;
 
+      const scheduleGrid = db.grid.filter(
+        (s) => (s.scheduleId || REGULAR_SCHEDULE_ID) === activeScheduleId,
+      );
+
       // 1. CONFLITO DE TURMA: Bloquear mais de uma aula para a MESMA TURMA no mesmo horário
-      const classSlots = db.grid.filter(
+      const classSlots = scheduleGrid.filter(
         (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId
       );
       if (classSlots.length > 0) {
@@ -255,7 +336,7 @@ export function useStore() {
       
       const incomingIds = teacherId.split('/').map(id => id.trim());
 
-      const teacherSlots = db.grid.filter((s) => s.weekday === weekday && s.blockId === blockId);
+      const teacherSlots = scheduleGrid.filter((s) => s.weekday === weekday && s.blockId === blockId);
       
       for (const slot of teacherSlots) {
         if (!slot.teacherId || slot.teacherId === 'sem-professor') continue;
@@ -275,7 +356,7 @@ export function useStore() {
 
       return collisions;
     },
-    [db.grid, db.classes],
+    [db.grid, db.classes, activeScheduleId],
   );
 
 
@@ -334,14 +415,23 @@ export function useStore() {
     setDb(loadDB());
   }, []);
 
+  const gridForActiveSchedule = useMemo(
+    () => db.grid.filter((s) => (s.scheduleId || REGULAR_SCHEDULE_ID) === activeScheduleId),
+    [db.grid, activeScheduleId],
+  );
+
   return {
     ...db,
     teachers: [...db.teachers].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     subjects: [...db.subjects].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+    grid: gridForActiveSchedule,
+    allGrid: db.grid,
     role,
     setRole,
     selectedTeacherId,
     setSelectedTeacherId,
+    activeScheduleId,
+    setActiveScheduleId,
     addTeacher,
     updateTeacher,
     deleteTeacher,
@@ -357,6 +447,10 @@ export function useStore() {
     checkCollisions,
     addOccurrence,
     deleteOccurrence,
+    addSchedule,
+    renameSchedule,
+    deleteSchedule,
+    duplicateSchedule,
     resetDB,
   };
 }
