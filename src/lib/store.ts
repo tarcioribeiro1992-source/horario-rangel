@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from './supabase';
 import type {
   Teacher,
@@ -11,14 +11,6 @@ import type {
   Weekday,
   ScheduleVersion,
 } from '@/types';
-import {
-  SEED_TEACHERS,
-  SEED_SUBJECTS,
-  SEED_CLASSES,
-  SEED_GRID,
-  SEED_OCCURRENCES,
-  SEED_EMAIL_LOGS,
-} from '@/lib/seedData';
 
 const STORAGE_KEY = 'horariorangel_db_v2';
 const REGULAR_SCHEDULE_ID = 'regular';
@@ -52,12 +44,12 @@ function loadDB(): DB {
     // ignore
   }
   return {
-    teachers: SEED_TEACHERS,
-    subjects: SEED_SUBJECTS,
-    classes: SEED_CLASSES,
-    grid: SEED_GRID.map((s) => ({ ...s, scheduleId: REGULAR_SCHEDULE_ID })),
-    occurrences: SEED_OCCURRENCES,
-    emailLogs: SEED_EMAIL_LOGS,
+    teachers: [],
+    subjects: [],
+    classes: [],
+    grid: [],
+    occurrences: [],
+    emailLogs: [],
     schedules: [
       { id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString() },
     ],
@@ -86,54 +78,159 @@ export function useStore() {
   const [role, setRole] = useState<Role>('professor');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t1');
   const [activeScheduleId, setActiveScheduleId] = useState<string>(REGULAR_SCHEDULE_ID);
+  const [cloudSynced, setCloudSynced] = useState(false);
+  const syncLock = useRef(false);
 
   // Sincronização inicial completa com o Supabase
   useEffect(() => {
+    if (syncLock.current) return;
+    syncLock.current = true;
+
     async function syncWithCloud() {
       try {
-        const [tRes, sRes, cRes, gRes, oRes] = await Promise.all([
+        const [tRes, sRes, cRes, gRes, oRes, vRes] = await Promise.all([
           supabase.from('professores').select('*'),
           supabase.from('disciplinas').select('*'),
           supabase.from('turmas').select('*'),
           supabase.from('grade_horaria').select('*'),
-          supabase.from('ocorrencias').select('*')
+          supabase.from('ocorrencias').select('*'),
+          supabase.from('versoes_horario').select('*'),
         ]);
-        
-        let updatedDb = { ...db };
-        
+
+        const updatedDb: DB = {
+          teachers: [],
+          subjects: [],
+          classes: [],
+          grid: [],
+          occurrences: [],
+          emailLogs: [],
+          schedules: [
+            { id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString() },
+          ],
+        };
+
         if (tRes.data && tRes.data.length > 0) {
           updatedDb.teachers = tRes.data.map((t: any) => ({
-            id: t.id, name: t.nome, email: t.email, phone: t.telefone || '', color: '#2563eb'
+            id: t.id, name: t.nome, email: t.email || '', phone: t.telefone || '', color: '#2563eb',
           }));
         }
         if (sRes.data && sRes.data.length > 0) {
           updatedDb.subjects = sRes.data.map((s: any) => ({
-            id: s.id, name: s.nome, color: s.cor || '#2563eb'
+            id: s.id, name: s.nome, color: s.cor || '#2563eb',
           }));
         }
         if (cRes.data && cRes.data.length > 0) {
           updatedDb.classes = cRes.data.map((c: any) => ({
-            id: c.id, name: c.nome, grade: c.ano_serie || ''
+            id: c.id, name: c.nome, grade: c.ano_serie || '',
           }));
         }
         if (gRes.data && gRes.data.length > 0) {
           updatedDb.grid = gRes.data.map((g: any) => ({
-            id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario), teacherId: g.professor_id, subjectId: g.disciplina, classId: g.turma
+            id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario),
+            teacherId: g.professor_id || 'sem-professor', subjectId: g.disciplina || '',
+            classId: g.turma || '', scheduleId: g.versao_id || REGULAR_SCHEDULE_ID,
           }));
         }
         if (oRes.data && oRes.data.length > 0) {
           updatedDb.occurrences = oRes.data.map((o: any) => ({
-            id: o.id, weekday: o.data, blockId: Number(o.bloco_horario), type: o.tipo, teacherId: o.professor_id, motivo: o.motivo || '', substituteTeacherId: '', date: o.data, createdAt: o.created_at
+            id: o.id, weekday: o.data, blockId: Number(o.bloco_horario),
+            type: o.tipo, teacherId: o.professor_id || 'sem-professor',
+            classId: '', note: o.motivo || '', substituteTeacherId: null,
+            createdAt: o.created_at || new Date().toISOString(),
           }));
         }
-        
+        if (vRes.data && vRes.data.length > 0) {
+          updatedDb.schedules = vRes.data.map((v: any) => ({
+            id: v.id, name: v.nome, isRegular: v.is_regular || false,
+            active: false, createdAt: v.created_at || new Date().toISOString(),
+          }));
+          if (!updatedDb.schedules.some((s) => s.id === REGULAR_SCHEDULE_ID)) {
+            updatedDb.schedules.unshift({
+              id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString(),
+            });
+          }
+        }
+
+        // Preserve emailLogs from local storage since they're not in Supabase
+        const localRaw = localStorage.getItem(STORAGE_KEY);
+        if (localRaw) {
+          try {
+            const localParsed = JSON.parse(localRaw) as DB;
+            updatedDb.emailLogs = localParsed.emailLogs || [];
+          } catch { /* ignore */ }
+        }
+
         setDb(updatedDb);
+        setCloudSynced(true);
       } catch (err) {
-        console.warn('Usando modo local offline.');
+        console.warn('Usando modo local offline.', err);
       }
     }
     syncWithCloud();
   }, []);
+
+  // Realtime subscriptions — reload from Supabase when any table changes
+  useEffect(() => {
+    if (!cloudSynced) return;
+
+    async function handleRealtimeChange() {
+      try {
+        const [tRes, sRes, cRes, gRes, oRes, vRes] = await Promise.all([
+          supabase.from('professores').select('*'),
+          supabase.from('disciplinas').select('*'),
+          supabase.from('turmas').select('*'),
+          supabase.from('grade_horaria').select('*'),
+          supabase.from('ocorrencias').select('*'),
+          supabase.from('versoes_horario').select('*'),
+        ]);
+
+        setDb((prev) => {
+          const updatedDb = { ...prev };
+          if (tRes.data) updatedDb.teachers = tRes.data.map((t: any) => ({
+            id: t.id, name: t.nome, email: t.email || '', phone: t.telefone || '', color: '#2563eb',
+          }));
+          if (sRes.data) updatedDb.subjects = sRes.data.map((s: any) => ({
+            id: s.id, name: s.nome, color: s.cor || '#2563eb',
+          }));
+          if (cRes.data) updatedDb.classes = cRes.data.map((c: any) => ({
+            id: c.id, name: c.nome, grade: c.ano_serie || '',
+          }));
+          if (gRes.data) updatedDb.grid = gRes.data.map((g: any) => ({
+            id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario),
+            teacherId: g.professor_id || 'sem-professor', subjectId: g.disciplina || '',
+            classId: g.turma || '', scheduleId: g.versao_id || REGULAR_SCHEDULE_ID,
+          }));
+          if (oRes.data) updatedDb.occurrences = oRes.data.map((o: any) => ({
+            id: o.id, weekday: o.data, blockId: Number(o.bloco_horario),
+            type: o.tipo, teacherId: o.professor_id || 'sem-professor',
+            classId: '', note: o.motivo || '', substituteTeacherId: null,
+            createdAt: o.created_at || new Date().toISOString(),
+          }));
+          if (vRes.data && vRes.data.length > 0) updatedDb.schedules = vRes.data.map((v: any) => ({
+            id: v.id, name: v.nome, isRegular: v.is_regular || false,
+            active: false, createdAt: v.created_at || new Date().toISOString(),
+          }));
+          return updatedDb;
+        });
+      } catch (err) {
+        console.warn('Erro ao recarregar dados em tempo real.', err);
+      }
+    }
+
+    const channel = supabase
+      .channel('horariorangel-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'professores' }, handleRealtimeChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'disciplinas' }, handleRealtimeChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'turmas' }, handleRealtimeChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'grade_horaria' }, handleRealtimeChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ocorrencias' }, handleRealtimeChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'versoes_horario' }, handleRealtimeChange)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [cloudSynced]);
 
   useEffect(() => {
     saveDB(db);
@@ -260,6 +357,7 @@ export function useStore() {
       ...prev,
       schedules: [...prev.schedules, newSchedule],
     }));
+    supabase.from('versoes_horario').insert([{ id: newId, nome: name, is_regular: false }]).then();
     return newId;
   }, []);
 
@@ -268,6 +366,7 @@ export function useStore() {
       ...prev,
       schedules: prev.schedules.map((s) => (s.id === id ? { ...s, name } : s)),
     }));
+    supabase.from('versoes_horario').update({ nome: name }).eq('id', id).then();
   }, []);
 
   const deleteSchedule = useCallback((id: string) => {
@@ -277,6 +376,8 @@ export function useStore() {
       schedules: prev.schedules.filter((s) => s.id !== id),
       grid: prev.grid.filter((s) => s.scheduleId !== id),
     }));
+    supabase.from('versoes_horario').delete().eq('id', id).then();
+    supabase.from('grade_horaria').delete().eq('versao_id', id).then();
     setActiveScheduleId((prev) => (prev === id ? REGULAR_SCHEDULE_ID : prev));
   }, []);
 
@@ -302,6 +403,20 @@ export function useStore() {
         grid: [...prev.grid, ...clonedSlots],
       };
     });
+    supabase.from('versoes_horario').insert([{ id: newId, nome: newName, is_regular: false }]).then();
+    // Insert cloned slots into Supabase
+    setDb((prev) => {
+      const cloned = prev.grid.filter((s) => s.scheduleId === newId);
+      if (cloned.length > 0) {
+        supabase.from('grade_horaria').insert(
+          cloned.map((s) => ({
+            id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
+            professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId, versao_id: newId,
+          })),
+        ).then();
+      }
+      return prev;
+    });
     return newId;
   }, []);
 
@@ -320,7 +435,6 @@ export function useStore() {
         (s) => (s.scheduleId || REGULAR_SCHEDULE_ID) === activeScheduleId,
       );
 
-      // 1. CONFLITO DE TURMA: Bloquear mais de uma aula para a MESMA TURMA no mesmo horário
       const classSlots = scheduleGrid.filter(
         (s) => s.weekday === weekday && s.blockId === blockId && s.classId === classId
       );
@@ -331,16 +445,15 @@ export function useStore() {
         });
       }
 
-      // 2. CONFLITO DE PROFESSOR: Bloquear se o professor já estiver em outra sala
       if (!teacherId || teacherId === 'sem-professor') return collisions;
-      
+
       const incomingIds = teacherId.split('/').map(id => id.trim());
 
       const teacherSlots = scheduleGrid.filter((s) => s.weekday === weekday && s.blockId === blockId);
-      
+
       for (const slot of teacherSlots) {
         if (!slot.teacherId || slot.teacherId === 'sem-professor') continue;
-        
+
         const existingIds = slot.teacherId.split('/').map(id => id.trim());
         const standardMatch = incomingIds.some(id => existingIds.includes(id));
 
@@ -388,13 +501,13 @@ export function useStore() {
         emailLogs: [emailLog, ...prev.emailLogs],
       }));
 
-      supabase.from('ocorrencias').insert([{ 
-        id, 
-        data: data.weekday || new Date().toLocaleDateString('pt-BR'), 
-        bloco_horario: String(occurrence.blockId), 
-        tipo: occurrence.type, 
-        professor_id: occurrence.teacherId || 'sem-professor', 
-        motivo: data.motivo || '' 
+      supabase.from('ocorrencias').insert([{
+        id,
+        data: data.weekday || new Date().toLocaleDateString('pt-BR'),
+        bloco_horario: String(occurrence.blockId),
+        tipo: occurrence.type,
+        professor_id: occurrence.teacherId || 'sem-professor',
+        motivo: data.note || ''
       }]).then();
 
       return emailLog;
@@ -432,6 +545,7 @@ export function useStore() {
     setSelectedTeacherId,
     activeScheduleId,
     setActiveScheduleId,
+    cloudSynced,
     addTeacher,
     updateTeacher,
     deleteTeacher,
@@ -454,4 +568,3 @@ export function useStore() {
     resetDB,
   };
 }
-
