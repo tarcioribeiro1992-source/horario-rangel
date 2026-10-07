@@ -83,13 +83,18 @@ export function useStore() {
   const [syncing, setSyncing] = useState(false);
   const syncLock = useRef(false);
 
-  function trackWrite(promise: Promise<{ error: any } | { error: null }>, label: string) {
-    promise.then(({ error }: any) => {
-      if (error) {
-        console.error(`Erro ao salvar (${label}):`, error);
-        setSyncError(`${label}: ${error.message || error.details || 'erro desconhecido'}`);
-      }
-    });
+  function trackWrite(promise: Promise<any>, label: string) {
+    promise
+      .then(({ error }: any) => {
+        if (error) {
+          console.error(`Erro ao salvar (${label}):`, error);
+          setSyncError(`${label}: ${error.message || error.details || 'erro desconhecido'}`);
+        }
+      })
+      .catch((err: any) => {
+        console.error(`Erro de rede (${label}):`, err);
+        setSyncError(`${label}: ${err?.message || 'erro de rede'}`);
+      });
   }
 
   // Sincronização inicial completa com o Supabase
