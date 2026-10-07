@@ -83,6 +83,15 @@ export function useStore() {
   const [syncing, setSyncing] = useState(false);
   const syncLock = useRef(false);
 
+  function trackWrite(promise: Promise<{ error: any } | { error: null }>, label: string) {
+    promise.then(({ error }: any) => {
+      if (error) {
+        console.error(`Erro ao salvar (${label}):`, error);
+        setSyncError(`${label}: ${error.message || error.details || 'erro desconhecido'}`);
+      }
+    });
+  }
+
   // Sincronização inicial completa com o Supabase
   useEffect(() => {
     if (syncLock.current) return;
@@ -172,51 +181,45 @@ export function useStore() {
         // Push local-only items up to the cloud so other devices can see them
         const localOnlySchedules = localDb.schedules.filter((s) => !cloudScheduleIds.has(s.id) && s.id !== REGULAR_SCHEDULE_ID);
         if (localOnlySchedules.length > 0) {
-          supabase.from('versoes_horario').insert(
-            localOnlySchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false })),
-          ).then(({ error }) => { if (error) console.error('Erro ao subir versões locais:', error); });
+          trackWrite(supabase.from('versoes_horario').insert(
+            localOnlySchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false }))), 'versão local');
         }
 
         const localOnlyGrid = localDb.grid.filter((s) => !cloudGridIds.has(s.id));
         if (localOnlyGrid.length > 0) {
-          supabase.from('grade_horaria').insert(
+          trackWrite(supabase.from('grade_horaria').insert(
             localOnlyGrid.map((s) => ({
               id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
               professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId,
               versao_id: s.scheduleId || REGULAR_SCHEDULE_ID,
-            })),
-          ).then(({ error }) => { if (error) console.error('Erro ao subir aulas locais:', error); });
+            }))), 'aulas locais');
         }
 
         const localOnlyTeachers = localDb.teachers.filter((t) => !cloudTeacherIds.has(t.id));
         if (localOnlyTeachers.length > 0) {
-          supabase.from('professores').insert(
-            localOnlyTeachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone })),
-          ).then(({ error }) => { if (error) console.error('Erro ao subir professores locais:', error); });
+          trackWrite(supabase.from('professores').insert(
+            localOnlyTeachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone }))), 'professor local');
         }
 
         const localOnlySubjects = localDb.subjects.filter((s) => !cloudSubjectIds.has(s.id));
         if (localOnlySubjects.length > 0) {
-          supabase.from('disciplinas').insert(
-            localOnlySubjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color })),
-          ).then(({ error }) => { if (error) console.error('Erro ao subir disciplinas locais:', error); });
+          trackWrite(supabase.from('disciplinas').insert(
+            localOnlySubjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color }))), 'disciplina local');
         }
 
         const localOnlyClasses = localDb.classes.filter((c) => !cloudClassIds.has(c.id));
         if (localOnlyClasses.length > 0) {
-          supabase.from('turmas').insert(
-            localOnlyClasses.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade })),
-          ).then(({ error }) => { if (error) console.error('Erro ao subir turmas locais:', error); });
+          trackWrite(supabase.from('turmas').insert(
+            localOnlyClasses.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade }))), 'turma local');
         }
 
         const localOnlyOccs = localDb.occurrences.filter((o) => !cloudOccIds.has(o.id));
         if (localOnlyOccs.length > 0) {
-          supabase.from('ocorrencias').insert(
+          trackWrite(supabase.from('ocorrencias').insert(
             localOnlyOccs.map((o) => ({
               id: o.id, data: o.weekday || '', bloco_horario: String(o.blockId),
               tipo: o.type, professor_id: o.teacherId || 'sem-professor', motivo: o.note || '',
-            })),
-          ).then(({ error }) => { if (error) console.error('Erro ao subir ocorrências locais:', error); });
+            }))), 'ocorrência local');
         }
       } catch (err: any) {
         console.error('Erro de sincronização:', err);
@@ -309,7 +312,7 @@ export function useStore() {
       ...prev,
       teachers: [...prev.teachers, { id: newId, name, email, phone, color }],
     }));
-    supabase.from('professores').insert([{ id: newId, nome: name, email: email, telefone: phone }]).then();
+    trackWrite(supabase.from('professores').insert([{ id: newId, nome: name, email: email, telefone: phone }]), 'professor');
   }, []);
 
   const updateTeacher = useCallback((id: string, name: string, email: string, phone: string, color: string) => {
@@ -317,7 +320,7 @@ export function useStore() {
       ...prev,
       teachers: prev.teachers.map((t) => (t.id === id ? { ...t, name, email, phone, color } : t)),
     }));
-    supabase.from('professores').update({ nome: name, email: email, telefone: phone }).eq('id', id).then();
+    trackWrite(supabase.from('professores').update({ nome: name, email: email, telefone: phone }).eq('id', id), 'professor');
   }, []);
 
   const deleteTeacher = useCallback((id: string) => {
@@ -326,7 +329,7 @@ export function useStore() {
       teachers: prev.teachers.filter((t) => t.id !== id),
       grid: prev.grid.filter((s) => s.teacherId !== id),
     }));
-    supabase.from('professores').delete().eq('id', id).then();
+    trackWrite(supabase.from('professores').delete().eq('id', id), 'professor');
   }, []);
 
   const addSubject = useCallback((name: string, color: string) => {
@@ -335,7 +338,7 @@ export function useStore() {
       ...prev,
       subjects: [...prev.subjects, { id: newId, name, color }],
     }));
-    supabase.from('disciplinas').insert([{ id: newId, nome: name, cor: color }]).then();
+    trackWrite(supabase.from('disciplinas').insert([{ id: newId, nome: name, cor: color }]), 'disciplina');
   }, []);
 
   const updateSubject = useCallback((id: string, name: string, color: string) => {
@@ -343,7 +346,7 @@ export function useStore() {
       ...prev,
       subjects: prev.subjects.map((s) => (s.id === id ? { ...s, name, color } : s)),
     }));
-    supabase.from('disciplinas').update({ nome: name, cor: color }).eq('id', id).then();
+    trackWrite(supabase.from('disciplinas').update({ nome: name, cor: color }).eq('id', id), 'disciplina');
   }, []);
 
   const deleteSubject = useCallback((id: string) => {
@@ -351,7 +354,7 @@ export function useStore() {
       ...prev,
       subjects: prev.subjects.filter((s) => s.id !== id),
     }));
-    supabase.from('disciplinas').delete().eq('id', id).then();
+    trackWrite(supabase.from('disciplinas').delete().eq('id', id), 'disciplina');
   }, []);
   const addClass = useCallback((name: string, grade: string) => {
     const newId = uid();
@@ -359,7 +362,7 @@ export function useStore() {
       ...prev,
       classes: [...prev.classes, { id: newId, name, grade }],
     }));
-    supabase.from('turmas').insert([{ id: newId, nome: name, ano_serie: grade }]).then();
+    trackWrite(supabase.from('turmas').insert([{ id: newId, nome: name, ano_serie: grade }]), 'turma');
   }, []);
 
   const updateClass = useCallback((id: string, name: string, grade: string) => {
@@ -367,7 +370,7 @@ export function useStore() {
       ...prev,
       classes: prev.classes.map((c) => (c.id === id ? { ...c, name, grade } : c)),
     }));
-    supabase.from('turmas').update({ nome: name, ano_serie: grade }).eq('id', id).then();
+    trackWrite(supabase.from('turmas').update({ nome: name, ano_serie: grade }).eq('id', id), 'turma');
   }, []);
 
   const deleteClass = useCallback((id: string) => {
@@ -376,7 +379,7 @@ export function useStore() {
       classes: prev.classes.filter((c) => c.id !== id),
       grid: prev.grid.filter((s) => s.classId !== id),
     }));
-    supabase.from('turmas').delete().eq('id', id).then();
+    trackWrite(supabase.from('turmas').delete().eq('id', id), 'turma');
   }, []);
 
   const addGridSlot = useCallback(
@@ -387,7 +390,7 @@ export function useStore() {
         ...prev,
         grid: [...prev.grid, { id: newId, weekday, blockId, teacherId, subjectId, classId, scheduleId: sid }],
       }));
-      supabase.from('grade_horaria').insert([{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId, versao_id: sid }]).then();
+      trackWrite(supabase.from('grade_horaria').insert([{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId, versao_id: sid }]), 'aula');
     },
     [],
   );
@@ -398,7 +401,7 @@ export function useStore() {
         ...prev,
         grid: prev.grid.map((s) => (s.id === id ? { ...s, teacherId, subjectId, classId } : s)),
       }));
-      supabase.from('grade_horaria').update({ professor_id: teacherId, disciplina: subjectId, turma: classId }).eq('id', id).then();
+      trackWrite(supabase.from('grade_horaria').update({ professor_id: teacherId, disciplina: subjectId, turma: classId }).eq('id', id), 'aula');
     },
     [],
   );
@@ -408,7 +411,7 @@ export function useStore() {
       ...prev,
       grid: prev.grid.filter((s) => s.id !== id),
     }));
-    supabase.from('grade_horaria').delete().eq('id', id).then();
+    trackWrite(supabase.from('grade_horaria').delete().eq('id', id), 'aula');
   }, []);
 
   const addSchedule = useCallback((name: string): string => {
@@ -424,8 +427,7 @@ export function useStore() {
       ...prev,
       schedules: [...prev.schedules, newSchedule],
     }));
-    supabase.from('versoes_horario').insert([{ id: newId, nome: name, is_regular: false }])
-      .then(({ error }) => { if (error) console.error('Erro ao salvar versão no Supabase:', error); });
+    trackWrite(supabase.from('versoes_horario').insert([{ id: newId, nome: name, is_regular: false }]), 'versão');
     return newId;
   }, []);
 
@@ -434,8 +436,7 @@ export function useStore() {
       ...prev,
       schedules: prev.schedules.map((s) => (s.id === id ? { ...s, name } : s)),
     }));
-    supabase.from('versoes_horario').update({ nome: name }).eq('id', id)
-      .then(({ error }) => { if (error) console.error('Erro ao renomear versão:', error); });
+    trackWrite(supabase.from('versoes_horario').update({ nome: name }).eq('id', id), 'versão');
   }, []);
 
   const deleteSchedule = useCallback((id: string) => {
@@ -445,10 +446,8 @@ export function useStore() {
       schedules: prev.schedules.filter((s) => s.id !== id),
       grid: prev.grid.filter((s) => s.scheduleId !== id),
     }));
-    supabase.from('versoes_horario').delete().eq('id', id)
-      .then(({ error }) => { if (error) console.error('Erro ao excluir versão:', error); });
-    supabase.from('grade_horaria').delete().eq('versao_id', id)
-      .then(({ error }) => { if (error) console.error('Erro ao excluir aulas da versão:', error); });
+    trackWrite(supabase.from('versoes_horario').delete().eq('id', id), 'versão');
+    trackWrite(supabase.from('grade_horaria').delete().eq('versao_id', id), 'aulas da versão');
     setActiveScheduleId((prev) => (prev === id ? REGULAR_SCHEDULE_ID : prev));
   }, []);
 
@@ -474,19 +473,21 @@ export function useStore() {
         grid: [...prev.grid, ...clonedSlots],
       };
     });
-    supabase.from('versoes_horario').insert([{ id: newId, nome: newName, is_regular: false }])
-      .then(({ error }) => { if (error) console.error('Erro ao duplicar versão:', error); });
+    trackWrite(supabase.from('versoes_horario').insert([{ id: newId, nome: newName, is_regular: false }]), 'versão duplicada');
     // Insert cloned slots into Supabase — use a microtask to ensure state has settled
     setTimeout(() => {
       setDb((prev) => {
         const cloned = prev.grid.filter((s) => s.scheduleId === newId);
         if (cloned.length > 0) {
-          supabase.from('grade_horaria').insert(
-            cloned.map((s) => ({
-              id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
-              professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId, versao_id: newId,
-            })),
-          ).then(({ error }) => { if (error) console.error('Erro ao clonar aulas:', error); });
+          trackWrite(
+            supabase.from('grade_horaria').insert(
+              cloned.map((s) => ({
+                id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
+                professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId, versao_id: newId,
+              })),
+            ),
+            'aulas clonadas',
+          );
         }
         return prev;
       });
@@ -575,14 +576,14 @@ export function useStore() {
         emailLogs: [emailLog, ...prev.emailLogs],
       }));
 
-      supabase.from('ocorrencias').insert([{
+      trackWrite(supabase.from('ocorrencias').insert([{
         id,
         data: data.weekday || new Date().toLocaleDateString('pt-BR'),
         bloco_horario: String(occurrence.blockId),
         tipo: occurrence.type,
         professor_id: occurrence.teacherId || 'sem-professor',
         motivo: data.note || ''
-      }]).then();
+      }]), 'ocorrência');
 
       return emailLog;
     },
@@ -594,7 +595,7 @@ export function useStore() {
       ...prev,
       occurrences: prev.occurrences.filter((o) => o.id !== id),
     }));
-    supabase.from('ocorrencias').delete().eq('id', id).then();
+    trackWrite(supabase.from('ocorrencias').delete().eq('id', id), 'ocorrência');
   }, []);
 
   const forceSync = useCallback(async () => {
@@ -609,21 +610,21 @@ export function useStore() {
           localDb.teachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone })),
           { onConflict: 'id' },
         );
-        if (error) console.error('forceSync professores:', error);
+        if (error) throw new Error(`professores: ${error.message}`);
       }
       if (localDb.subjects.length > 0) {
         const { error } = await supabase.from('disciplinas').upsert(
           localDb.subjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color })),
           { onConflict: 'id' },
         );
-        if (error) console.error('forceSync disciplinas:', error);
+        if (error) throw new Error(`disciplinas: ${error.message}`);
       }
       if (localDb.classes.length > 0) {
         const { error } = await supabase.from('turmas').upsert(
           localDb.classes.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade })),
           { onConflict: 'id' },
         );
-        if (error) console.error('forceSync turmas:', error);
+        if (error) throw new Error(`turmas: ${error.message}`);
       }
       const localSchedules = localDb.schedules.filter((s) => s.id !== REGULAR_SCHEDULE_ID);
       if (localSchedules.length > 0) {
@@ -631,7 +632,7 @@ export function useStore() {
           localSchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false })),
           { onConflict: 'id' },
         );
-        if (error) console.error('forceSync versoes:', error);
+        if (error) throw new Error(`versoes: ${error.message}`);
       }
       if (localDb.grid.length > 0) {
         const { error } = await supabase.from('grade_horaria').upsert(
@@ -642,7 +643,7 @@ export function useStore() {
           })),
           { onConflict: 'id' },
         );
-        if (error) console.error('forceSync grade:', error);
+        if (error) throw new Error(`grade: ${error.message}`);
       }
       if (localDb.occurrences.length > 0) {
         const { error } = await supabase.from('ocorrencias').upsert(
@@ -652,7 +653,7 @@ export function useStore() {
           })),
           { onConflict: 'id' },
         );
-        if (error) console.error('forceSync ocorrencias:', error);
+        if (error) throw new Error(`ocorrencias: ${error.message}`);
       }
 
       setCloudSynced(true);
