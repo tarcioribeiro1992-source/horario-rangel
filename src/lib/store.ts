@@ -713,3 +713,5 @@ export function useStore() {
     resetDB,
   };
 }
+
+export type Store = ReturnType<typeof useStore>;

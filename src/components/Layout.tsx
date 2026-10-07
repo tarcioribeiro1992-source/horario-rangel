@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock, BookOpen, ChevronDown, FolderOpen, Layers } from 'lucide-react';
+import { GraduationCap, Calendar, BarChart3, Users, Settings, Mail, Clock, BookOpen, ChevronDown, FolderOpen, Layers, RefreshCw, Cloud, CloudOff, Loader2 } from 'lucide-react';
 import type { Role } from '@/types';
 import type { Store } from '@/lib/store';
 import { PasswordModal } from '@/components/PasswordModal';
@@ -30,7 +30,7 @@ const ADMIN_NAV: NavItem[] = [
 ];
 
 export function Layout({ store, adminView, setAdminView, children }: LayoutProps) {
-  const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId, schedules, activeScheduleId, setActiveScheduleId } = store;
+  const { role, setRole, teachers, selectedTeacherId, setSelectedTeacherId, schedules, activeScheduleId, setActiveScheduleId, cloudSynced, syncError, syncing, forceSync } = store;
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -69,6 +69,31 @@ export function Layout({ store, adminView, setAdminView, children }: LayoutProps
 
             {/* Selector and Role Toggle */}
             <div className="flex items-center gap-3">
+              {/* Sync status */}
+              <button
+                onClick={() => forceSync()}
+                disabled={syncing}
+                title={syncError ? `Erro: ${syncError}` : cloudSynced ? 'Sincronizado com a nuvem' : 'Clique para sincronizar'}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  syncError
+                    ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                    : cloudSynced
+                    ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                    : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                } ${syncing ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                {syncing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : syncError ? (
+                  <CloudOff className="w-3.5 h-3.5" />
+                ) : (
+                  <Cloud className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {syncing ? 'Sincronizando...' : syncError ? 'Erro de sincronização' : cloudSynced ? 'Na nuvem' : 'Sincronizar'}
+                </span>
+              </button>
+
               <select
                 value={selectedTeacherId || ''}
                 onChange={(e) => setSelectedTeacherId(e.target.value)}
