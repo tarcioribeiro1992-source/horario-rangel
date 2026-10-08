@@ -83,18 +83,50 @@ export function useStore() {
   const [syncing, setSyncing] = useState(false);
   const syncLock = useRef(false);
 
-  function trackWrite(promise: Promise<any>, label: string) {
-    promise
-      .then(({ error }: any) => {
-        if (error) {
-          console.error(`Erro ao salvar (${label}):`, error);
-          setSyncError(`${label}: ${error.message || error.details || 'erro desconhecido'}`);
+  async function retryOp<T>(op: () => Promise<T>, retries = 3, delayMs = 1500): Promise<T> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const result = await op();
+        return result;
+      } catch (err: any) {
+        if (attempt === retries) throw err;
+        await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
+      }
+    }
+    throw new Error('unreachable');
+  }
+
+  async function fetchWithRetry(builder: () => Promise<any>, label: string, retries = 3): Promise<any> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const result = await builder();
+        if (result.error) {
+          const msg = result.error.message || result.error.details || 'erro desconhecido';
+          if (attempt < retries && /schema cache|Could not find/i.test(msg)) {
+            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+            continue;
+          }
+          console.error(`Erro ao salvar (${label}):`, result.error);
+          setSyncError(`${label}: ${msg}`);
+          return result;
         }
-      })
-      .catch((err: any) => {
+        setSyncError(null);
+        return result;
+      } catch (err: any) {
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
         console.error(`Erro de rede (${label}):`, err);
         setSyncError(`${label}: ${err?.message || 'erro de rede'}`);
-      });
+        return { data: null, error: err };
+      }
+    }
+    return { data: null, error: { message: 'max retries exceeded' } };
+  }
+
+  function trackWrite(promiseBuilder: () => Promise<any>, label: string) {
+    fetchWithRetry(promiseBuilder, label);
   }
 
   // Sincronização inicial completa com o Supabase
