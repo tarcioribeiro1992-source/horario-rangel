@@ -14,7 +14,6 @@ import type {
 
 const STORAGE_KEY = 'horariorangel_db_v2';
 const REGULAR_SCHEDULE_ID = 'regular';
-const SCHEMA_CACHE_RETRY = 5;
 
 interface DB {
   teachers: Teacher[];
@@ -74,8 +73,79 @@ function buildEmailBody(occ: any, teacher: any, subTeacher: any, schoolClass: an
   return `Olá, ${teacher?.name || 'Professor'}.\nHouve uma alteração de horário marcada como: ${occ.type}.\nMotivo: ${occ.motivo || 'Não informado'}.\nPor favor, consulte o aplicativo HorárioRangel para mais informações.`;
 }
 
-function isSchemaCacheError(msg: string): boolean {
-  return /schema cache|Could not find the table/i.test(msg);
+function getFunctionUrl(name: string): string {
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`;
+}
+
+async function cloudFetchAll(): Promise<DB> {
+  const res = await fetch(getFunctionUrl('fetch-db'), {
+    headers: {
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+
+  const schedules: ScheduleVersion[] = (data.schedules || []).map((v: any) => ({
+    id: v.id, name: v.nome, isRegular: v.is_regular || false,
+    active: false, createdAt: v.created_at || new Date().toISOString(),
+  }));
+  if (!schedules.some((s) => s.id === REGULAR_SCHEDULE_ID)) {
+    schedules.unshift({
+      id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString(),
+    });
+  }
+
+  return {
+    teachers: (data.teachers || []).map((t: any) => ({
+      id: t.id, name: t.nome, email: t.email || '', phone: t.telefone || '', color: '#2563eb',
+    })),
+    subjects: (data.subjects || []).map((s: any) => ({
+      id: s.id, name: s.nome, color: s.cor || '#2563eb',
+    })),
+    classes: (data.classes || []).map((c: any) => ({
+      id: c.id, name: c.nome, grade: c.ano_serie || '',
+    })),
+    grid: (data.grid || []).map((g: any) => ({
+      id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario),
+      teacherId: g.professor_id || 'sem-professor', subjectId: g.disciplina || '',
+      classId: g.turma || '', scheduleId: g.versao_id || REGULAR_SCHEDULE_ID,
+    })),
+    occurrences: (data.occurrences || []).map((o: any) => ({
+      id: o.id, weekday: o.data, blockId: Number(o.bloco_horario),
+      type: o.tipo, teacherId: o.professor_id || 'sem-professor',
+      classId: '', note: o.motivo || '', substituteTeacherId: null,
+      createdAt: o.created_at || new Date().toISOString(),
+    })),
+    emailLogs: [],
+    schedules,
+  };
+}
+
+async function cloudUpsert(payload: {
+  teachers?: any[];
+  subjects?: any[];
+  classes?: any[];
+  schedules?: any[];
+  grid?: any[];
+  occurrences?: any[];
+}): Promise<void> {
+  const res = await fetch(getFunctionUrl('sync-db'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
 }
 
 export function useStore() {
@@ -88,88 +158,49 @@ export function useStore() {
   const [syncing, setSyncing] = useState(false);
   const syncLock = useRef(false);
 
-  async function fetchWithRetry(builder: () => Promise<any>, label: string): Promise<any> {
-    for (let attempt = 0; attempt <= SCHEMA_CACHE_RETRY; attempt++) {
-      try {
-        const result = await builder();
-        if (result.error) {
-          const msg = result.error.message || result.error.details || 'erro desconhecido';
-          if (attempt < SCHEMA_CACHE_RETRY && isSchemaCacheError(msg)) {
-            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-            continue;
-          }
-          console.error(`Erro ao salvar (${label}):`, result.error);
-          setSyncError(`${label}: ${msg}`);
-          return result;
-        }
+  function trackWrite(promise: Promise<void>, label: string) {
+    promise
+      .then(() => {
         setSyncError(null);
-        return result;
-      } catch (err: any) {
-        const msg = err?.message || 'erro de rede';
-        if (attempt < SCHEMA_CACHE_RETRY && isSchemaCacheError(msg)) {
-          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-          continue;
-        }
-        console.error(`Erro de rede (${label}):`, err);
-        setSyncError(`${label}: ${msg}`);
-        return { data: null, error: err };
-      }
-    }
-    return { data: null, error: { message: 'max retries exceeded' } };
+      })
+      .catch((err: any) => {
+        console.error(`Erro ao salvar (${label}):`, err);
+        setSyncError(`${label}: ${err?.message || 'erro desconhecido'}`);
+      });
   }
 
-  function trackWrite(builder: () => Promise<any>, label: string) {
-    fetchWithRetry(builder, label);
-  }
-
-  // Sincronização inicial completa com o Supabase
+  // Sincronização inicial completa com o Supabase (via edge function)
   useEffect(() => {
     if (syncLock.current) return;
     syncLock.current = true;
 
     async function syncWithCloud() {
       try {
-        const [tRes, sRes, cRes, gRes, oRes, vRes] = await Promise.all([
-          fetchWithRetry(() => supabase.from('professores').select('*'), 'professores'),
-          fetchWithRetry(() => supabase.from('disciplinas').select('*'), 'disciplinas'),
-          fetchWithRetry(() => supabase.from('turmas').select('*'), 'turmas'),
-          fetchWithRetry(() => supabase.from('grade_horaria').select('*'), 'grade_horaria'),
-          fetchWithRetry(() => supabase.from('ocorrencias').select('*'), 'ocorrencias'),
-          fetchWithRetry(() => supabase.from('versoes_horario').select('*'), 'versoes_horario'),
-        ]);
-
+        setSyncing(true);
+        const cloudData = await cloudFetchAll();
         const localDb = loadDB();
 
-        const cloudTeacherIds = new Set((tRes.data || []).map((t: any) => t.id));
-        const cloudSubjectIds = new Set((sRes.data || []).map((s: any) => s.id));
-        const cloudClassIds = new Set((cRes.data || []).map((c: any) => c.id));
-        const cloudScheduleIds = new Set((vRes.data || []).map((v: any) => v.id));
-        const cloudGridIds = new Set((gRes.data || []).map((g: any) => g.id));
-        const cloudOccIds = new Set((oRes.data || []).map((o: any) => o.id));
+        const cloudTeacherIds = new Set(cloudData.teachers.map((t) => t.id));
+        const cloudSubjectIds = new Set(cloudData.subjects.map((s) => s.id));
+        const cloudClassIds = new Set(cloudData.classes.map((c) => c.id));
+        const cloudScheduleIds = new Set(cloudData.schedules.map((s) => s.id));
+        const cloudGridIds = new Set(cloudData.grid.map((g) => g.id));
+        const cloudOccIds = new Set(cloudData.occurrences.map((o) => o.id));
 
         const mergedTeachers = [
-          ...(tRes.data || []).map((t: any) => ({
-            id: t.id, name: t.nome, email: t.email || '', phone: t.telefone || '', color: '#2563eb',
-          })),
+          ...cloudData.teachers,
           ...localDb.teachers.filter((t) => !cloudTeacherIds.has(t.id)),
         ];
         const mergedSubjects = [
-          ...(sRes.data || []).map((s: any) => ({
-            id: s.id, name: s.nome, color: s.cor || '#2563eb',
-          })),
+          ...cloudData.subjects,
           ...localDb.subjects.filter((s) => !cloudSubjectIds.has(s.id)),
         ];
         const mergedClasses = [
-          ...(cRes.data || []).map((c: any) => ({
-            id: c.id, name: c.nome, grade: c.ano_serie || '',
-          })),
+          ...cloudData.classes,
           ...localDb.classes.filter((c) => !cloudClassIds.has(c.id)),
         ];
         const mergedSchedules: ScheduleVersion[] = [
-          ...(vRes.data || []).map((v: any) => ({
-            id: v.id, name: v.nome, isRegular: v.is_regular || false,
-            active: false, createdAt: v.created_at || new Date().toISOString(),
-          })),
+          ...cloudData.schedules,
           ...localDb.schedules.filter((s) => !cloudScheduleIds.has(s.id)),
         ];
         if (!mergedSchedules.some((s) => s.id === REGULAR_SCHEDULE_ID)) {
@@ -178,20 +209,11 @@ export function useStore() {
           });
         }
         const mergedGrid = [
-          ...(gRes.data || []).map((g: any) => ({
-            id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario),
-            teacherId: g.professor_id || 'sem-professor', subjectId: g.disciplina || '',
-            classId: g.turma || '', scheduleId: g.versao_id || REGULAR_SCHEDULE_ID,
-          })),
+          ...cloudData.grid,
           ...localDb.grid.filter((s) => !cloudGridIds.has(s.id)),
         ];
         const mergedOccurrences = [
-          ...(oRes.data || []).map((o: any) => ({
-            id: o.id, weekday: o.data, blockId: Number(o.bloco_horario),
-            type: o.tipo, teacherId: o.professor_id || 'sem-professor',
-            classId: '', note: o.motivo || '', substituteTeacherId: null,
-            createdAt: o.created_at || new Date().toISOString(),
-          })),
+          ...cloudData.occurrences,
           ...localDb.occurrences.filter((o) => !cloudOccIds.has(o.id)),
         ];
 
@@ -205,48 +227,36 @@ export function useStore() {
           schedules: mergedSchedules,
         });
         setCloudSynced(true);
+        setSyncError(null);
 
+        // Push local-only items up to the cloud via edge function
         const localOnlySchedules = localDb.schedules.filter((s) => !cloudScheduleIds.has(s.id) && s.id !== REGULAR_SCHEDULE_ID);
-        if (localOnlySchedules.length > 0) {
-          trackWrite(() => supabase.from('versoes_horario').insert(
-            localOnlySchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false }))), 'versão local');
-        }
-
         const localOnlyGrid = localDb.grid.filter((s) => !cloudGridIds.has(s.id));
-        if (localOnlyGrid.length > 0) {
-          trackWrite(() => supabase.from('grade_horaria').insert(
-            localOnlyGrid.map((s) => ({
+        const localOnlyTeachers = localDb.teachers.filter((t) => !cloudTeacherIds.has(t.id));
+        const localOnlySubjects = localDb.subjects.filter((s) => !cloudSubjectIds.has(s.id));
+        const localOnlyClasses = localDb.classes.filter((c) => !cloudClassIds.has(c.id));
+        const localOnlyOccs = localDb.occurrences.filter((o) => !cloudOccIds.has(o.id));
+
+        const hasLocalOnly = localOnlySchedules.length > 0 || localOnlyGrid.length > 0 ||
+          localOnlyTeachers.length > 0 || localOnlySubjects.length > 0 ||
+          localOnlyClasses.length > 0 || localOnlyOccs.length > 0;
+
+        if (hasLocalOnly) {
+          trackWrite(cloudUpsert({
+            teachers: localOnlyTeachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone })),
+            subjects: localOnlySubjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color })),
+            classes: localOnlyClasses.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade })),
+            schedules: localOnlySchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false })),
+            grid: localOnlyGrid.map((s) => ({
               id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
               professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId,
               versao_id: s.scheduleId || REGULAR_SCHEDULE_ID,
-            }))), 'aulas locais');
-        }
-
-        const localOnlyTeachers = localDb.teachers.filter((t) => !cloudTeacherIds.has(t.id));
-        if (localOnlyTeachers.length > 0) {
-          trackWrite(() => supabase.from('professores').insert(
-            localOnlyTeachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone }))), 'professor local');
-        }
-
-        const localOnlySubjects = localDb.subjects.filter((s) => !cloudSubjectIds.has(s.id));
-        if (localOnlySubjects.length > 0) {
-          trackWrite(() => supabase.from('disciplinas').insert(
-            localOnlySubjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color }))), 'disciplina local');
-        }
-
-        const localOnlyClasses = localDb.classes.filter((c) => !cloudClassIds.has(c.id));
-        if (localOnlyClasses.length > 0) {
-          trackWrite(() => supabase.from('turmas').insert(
-            localOnlyClasses.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade }))), 'turma local');
-        }
-
-        const localOnlyOccs = localDb.occurrences.filter((o) => !cloudOccIds.has(o.id));
-        if (localOnlyOccs.length > 0) {
-          trackWrite(() => supabase.from('ocorrencias').insert(
-            localOnlyOccs.map((o) => ({
+            })),
+            occurrences: localOnlyOccs.map((o) => ({
               id: o.id, data: o.weekday || '', bloco_horario: String(o.blockId),
               tipo: o.type, professor_id: o.teacherId || 'sem-professor', motivo: o.note || '',
-            }))), 'ocorrência local');
+            })),
+          }), 'versão local');
         }
       } catch (err: any) {
         console.error('Erro de sincronização:', err);
@@ -262,53 +272,16 @@ export function useStore() {
   useEffect(() => {
     if (!cloudSynced) return;
 
+    let active = true;
+
     async function handleRealtimeChange() {
       try {
-        const [tRes, sRes, cRes, gRes, oRes, vRes] = await Promise.all([
-          supabase.from('professores').select('*'),
-          supabase.from('disciplinas').select('*'),
-          supabase.from('turmas').select('*'),
-          supabase.from('grade_horaria').select('*'),
-          supabase.from('ocorrencias').select('*'),
-          supabase.from('versoes_horario').select('*'),
-        ]);
-
-        setDb((prev) => {
-          const updatedDb = { ...prev };
-          if (tRes.data) updatedDb.teachers = tRes.data.map((t: any) => ({
-            id: t.id, name: t.nome, email: t.email || '', phone: t.telefone || '', color: '#2563eb',
-          }));
-          if (sRes.data) updatedDb.subjects = sRes.data.map((s: any) => ({
-            id: s.id, name: s.nome, color: s.cor || '#2563eb',
-          }));
-          if (cRes.data) updatedDb.classes = cRes.data.map((c: any) => ({
-            id: c.id, name: c.nome, grade: c.ano_serie || '',
-          }));
-          if (gRes.data) updatedDb.grid = gRes.data.map((g: any) => ({
-            id: g.id, weekday: g.dia_semana, blockId: Number(g.bloco_horario),
-            teacherId: g.professor_id || 'sem-professor', subjectId: g.disciplina || '',
-            classId: g.turma || '', scheduleId: g.versao_id || REGULAR_SCHEDULE_ID,
-          }));
-          if (oRes.data) updatedDb.occurrences = oRes.data.map((o: any) => ({
-            id: o.id, weekday: o.data, blockId: Number(o.bloco_horario),
-            type: o.tipo, teacherId: o.professor_id || 'sem-professor',
-            classId: '', note: o.motivo || '', substituteTeacherId: null,
-            createdAt: o.created_at || new Date().toISOString(),
-          }));
-          if (vRes.data) {
-            const cloudSchedules = vRes.data.map((v: any) => ({
-              id: v.id, name: v.nome, isRegular: v.is_regular || false,
-              active: false, createdAt: v.created_at || new Date().toISOString(),
-            }));
-            if (!cloudSchedules.some((s: ScheduleVersion) => s.id === REGULAR_SCHEDULE_ID)) {
-              cloudSchedules.unshift({
-                id: REGULAR_SCHEDULE_ID, name: 'Grade Regular', isRegular: true, active: true, createdAt: new Date().toISOString(),
-              });
-            }
-            updatedDb.schedules = cloudSchedules;
-          }
-          return updatedDb;
-        });
+        const cloudData = await cloudFetchAll();
+        if (!active) return;
+        setDb((prev) => ({
+          ...cloudData,
+          emailLogs: prev.emailLogs || [],
+        }));
       } catch (err) {
         console.warn('Erro ao recarregar dados em tempo real.', err);
       }
@@ -325,6 +298,7 @@ export function useStore() {
       .subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
     };
   }, [cloudSynced]);
@@ -339,7 +313,7 @@ export function useStore() {
       ...prev,
       teachers: [...prev.teachers, { id: newId, name, email, phone, color }],
     }));
-    trackWrite(() => supabase.from('professores').insert([{ id: newId, nome: name, email: email, telefone: phone }]), 'professor');
+    trackWrite(cloudUpsert({ teachers: [{ id: newId, nome: name, email, telefone: phone }] }), 'professor');
   }, []);
 
   const updateTeacher = useCallback((id: string, name: string, email: string, phone: string, color: string) => {
@@ -347,7 +321,7 @@ export function useStore() {
       ...prev,
       teachers: prev.teachers.map((t) => (t.id === id ? { ...t, name, email, phone, color } : t)),
     }));
-    trackWrite(() => supabase.from('professores').update({ nome: name, email: email, telefone: phone }).eq('id', id), 'professor');
+    trackWrite(cloudUpsert({ teachers: [{ id, nome: name, email, telefone: phone }] }), 'professor');
   }, []);
 
   const deleteTeacher = useCallback((id: string) => {
@@ -356,7 +330,7 @@ export function useStore() {
       teachers: prev.teachers.filter((t) => t.id !== id),
       grid: prev.grid.filter((s) => s.teacherId !== id),
     }));
-    trackWrite(() => supabase.from('professores').delete().eq('id', id), 'professor');
+    trackWrite(supabase.from('professores').delete().eq('id', id).then(() => undefined), 'professor');
   }, []);
 
   const addSubject = useCallback((name: string, color: string) => {
@@ -365,7 +339,7 @@ export function useStore() {
       ...prev,
       subjects: [...prev.subjects, { id: newId, name, color }],
     }));
-    trackWrite(() => supabase.from('disciplinas').insert([{ id: newId, nome: name, cor: color }]), 'disciplina');
+    trackWrite(cloudUpsert({ subjects: [{ id: newId, nome: name, cor: color }] }), 'disciplina');
   }, []);
 
   const updateSubject = useCallback((id: string, name: string, color: string) => {
@@ -373,7 +347,7 @@ export function useStore() {
       ...prev,
       subjects: prev.subjects.map((s) => (s.id === id ? { ...s, name, color } : s)),
     }));
-    trackWrite(() => supabase.from('disciplinas').update({ nome: name, cor: color }).eq('id', id), 'disciplina');
+    trackWrite(cloudUpsert({ subjects: [{ id, nome: name, cor: color }] }), 'disciplina');
   }, []);
 
   const deleteSubject = useCallback((id: string) => {
@@ -381,15 +355,16 @@ export function useStore() {
       ...prev,
       subjects: prev.subjects.filter((s) => s.id !== id),
     }));
-    trackWrite(() => supabase.from('disciplinas').delete().eq('id', id), 'disciplina');
+    trackWrite(supabase.from('disciplinas').delete().eq('id', id).then(() => undefined), 'disciplina');
   }, []);
+
   const addClass = useCallback((name: string, grade: string) => {
     const newId = uid();
     setDb((prev) => ({
       ...prev,
       classes: [...prev.classes, { id: newId, name, grade }],
     }));
-    trackWrite(() => supabase.from('turmas').insert([{ id: newId, nome: name, ano_serie: grade }]), 'turma');
+    trackWrite(cloudUpsert({ classes: [{ id: newId, nome: name, ano_serie: grade }] }), 'turma');
   }, []);
 
   const updateClass = useCallback((id: string, name: string, grade: string) => {
@@ -397,7 +372,7 @@ export function useStore() {
       ...prev,
       classes: prev.classes.map((c) => (c.id === id ? { ...c, name, grade } : c)),
     }));
-    trackWrite(() => supabase.from('turmas').update({ nome: name, ano_serie: grade }).eq('id', id), 'turma');
+    trackWrite(cloudUpsert({ classes: [{ id, nome: name, ano_serie: grade }] }), 'turma');
   }, []);
 
   const deleteClass = useCallback((id: string) => {
@@ -406,7 +381,7 @@ export function useStore() {
       classes: prev.classes.filter((c) => c.id !== id),
       grid: prev.grid.filter((s) => s.classId !== id),
     }));
-    trackWrite(() => supabase.from('turmas').delete().eq('id', id), 'turma');
+    trackWrite(supabase.from('turmas').delete().eq('id', id).then(() => undefined), 'turma');
   }, []);
 
   const addGridSlot = useCallback(
@@ -417,7 +392,7 @@ export function useStore() {
         ...prev,
         grid: [...prev.grid, { id: newId, weekday, blockId, teacherId, subjectId, classId, scheduleId: sid }],
       }));
-      trackWrite(() => supabase.from('grade_horaria').insert([{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId, versao_id: sid }]), 'aula');
+      trackWrite(cloudUpsert({ grid: [{ id: newId, dia_semana: weekday, bloco_horario: String(blockId), professor_id: teacherId, disciplina: subjectId, turma: classId, versao_id: sid }] }), 'aula');
     },
     [],
   );
@@ -428,7 +403,7 @@ export function useStore() {
         ...prev,
         grid: prev.grid.map((s) => (s.id === id ? { ...s, teacherId, subjectId, classId } : s)),
       }));
-      trackWrite(() => supabase.from('grade_horaria').update({ professor_id: teacherId, disciplina: subjectId, turma: classId }).eq('id', id), 'aula');
+      trackWrite(supabase.from('grade_horaria').update({ professor_id: teacherId, disciplina: subjectId, turma: classId }).eq('id', id).then(() => undefined), 'aula');
     },
     [],
   );
@@ -438,7 +413,7 @@ export function useStore() {
       ...prev,
       grid: prev.grid.filter((s) => s.id !== id),
     }));
-    trackWrite(() => supabase.from('grade_horaria').delete().eq('id', id), 'aula');
+    trackWrite(supabase.from('grade_horaria').delete().eq('id', id).then(() => undefined), 'aula');
   }, []);
 
   const addSchedule = useCallback((name: string): string => {
@@ -454,7 +429,7 @@ export function useStore() {
       ...prev,
       schedules: [...prev.schedules, newSchedule],
     }));
-    trackWrite(() => supabase.from('versoes_horario').insert([{ id: newId, nome: name, is_regular: false }]), 'versão');
+    trackWrite(cloudUpsert({ schedules: [{ id: newId, nome: name, is_regular: false }] }), 'versão');
     return newId;
   }, []);
 
@@ -463,7 +438,7 @@ export function useStore() {
       ...prev,
       schedules: prev.schedules.map((s) => (s.id === id ? { ...s, name } : s)),
     }));
-    trackWrite(() => supabase.from('versoes_horario').update({ nome: name }).eq('id', id), 'versão');
+    trackWrite(cloudUpsert({ schedules: [{ id, nome: name, is_regular: false }] }), 'versão');
   }, []);
 
   const deleteSchedule = useCallback((id: string) => {
@@ -473,8 +448,8 @@ export function useStore() {
       schedules: prev.schedules.filter((s) => s.id !== id),
       grid: prev.grid.filter((s) => s.scheduleId !== id),
     }));
-    trackWrite(() => supabase.from('versoes_horario').delete().eq('id', id), 'versão');
-    trackWrite(() => supabase.from('grade_horaria').delete().eq('versao_id', id), 'aulas da versão');
+    trackWrite(supabase.from('versoes_horario').delete().eq('id', id).then(() => undefined), 'versão');
+    trackWrite(supabase.from('grade_horaria').delete().eq('versao_id', id).then(() => undefined), 'aulas da versão');
     setActiveScheduleId((prev) => (prev === id ? REGULAR_SCHEDULE_ID : prev));
   }, []);
 
@@ -494,30 +469,21 @@ export function useStore() {
         id: uid(),
         scheduleId: newId,
       }));
+
+      trackWrite(cloudUpsert({
+        schedules: [{ id: newId, nome: newName, is_regular: false }],
+        grid: clonedSlots.map((s) => ({
+          id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
+          professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId, versao_id: newId,
+        })),
+      }), 'versão duplicada');
+
       return {
         ...prev,
         schedules: [...prev.schedules, newSchedule],
         grid: [...prev.grid, ...clonedSlots],
       };
     });
-    trackWrite(() => supabase.from('versoes_horario').insert([{ id: newId, nome: newName, is_regular: false }]), 'versão duplicada');
-    setTimeout(() => {
-      setDb((prev) => {
-        const cloned = prev.grid.filter((s) => s.scheduleId === newId);
-        if (cloned.length > 0) {
-          trackWrite(
-            () => supabase.from('grade_horaria').insert(
-              cloned.map((s) => ({
-                id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
-                professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId, versao_id: newId,
-              })),
-            ),
-            'aulas clonadas',
-          );
-        }
-        return prev;
-      });
-    }, 0);
     return newId;
   }, []);
 
@@ -549,15 +515,12 @@ export function useStore() {
       if (!teacherId || teacherId === 'sem-professor') return collisions;
 
       const incomingIds = teacherId.split('/').map(id => id.trim());
-
       const teacherSlots = scheduleGrid.filter((s) => s.weekday === weekday && s.blockId === blockId);
 
       for (const slot of teacherSlots) {
         if (!slot.teacherId || slot.teacherId === 'sem-professor') continue;
-
         const existingIds = slot.teacherId.split('/').map(id => id.trim());
         const standardMatch = incomingIds.some(id => existingIds.includes(id));
-
         if (standardMatch && slot.classId !== classId) {
           const otherClass = db.classes.find((c) => c.id === slot.classId);
           collisions.push({
@@ -572,7 +535,6 @@ export function useStore() {
     },
     [db.grid, db.classes, activeScheduleId],
   );
-
 
   const addOccurrence = useCallback(
     (data: Omit<Occurrence, 'id' | 'createdAt'>) => {
@@ -602,14 +564,14 @@ export function useStore() {
         emailLogs: [emailLog, ...prev.emailLogs],
       }));
 
-      trackWrite(() => supabase.from('ocorrencias').insert([{
+      trackWrite(cloudUpsert({ occurrences: [{
         id,
         data: data.weekday || new Date().toLocaleDateString('pt-BR'),
         bloco_horario: String(occurrence.blockId),
         tipo: occurrence.type,
         professor_id: occurrence.teacherId || 'sem-professor',
-        motivo: data.note || ''
-      }]), 'ocorrência');
+        motivo: data.note || '',
+      }] }), 'ocorrência');
 
       return emailLog;
     },
@@ -621,7 +583,7 @@ export function useStore() {
       ...prev,
       occurrences: prev.occurrences.filter((o) => o.id !== id),
     }));
-    trackWrite(() => supabase.from('ocorrencias').delete().eq('id', id), 'ocorrência');
+    trackWrite(supabase.from('ocorrencias').delete().eq('id', id).then(() => undefined), 'ocorrência');
   }, []);
 
   const forceSync = useCallback(async () => {
@@ -629,58 +591,29 @@ export function useStore() {
     setSyncError(null);
     try {
       const localDb = loadDB();
-
-      if (localDb.teachers.length > 0) {
-        const res = await fetchWithRetry(() => supabase.from('professores').upsert(
-          localDb.teachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone })),
-          { onConflict: 'id' },
-        ), 'professores');
-        if (res.error) throw new Error(`professores: ${res.error.message}`);
-      }
-      if (localDb.subjects.length > 0) {
-        const res = await fetchWithRetry(() => supabase.from('disciplinas').upsert(
-          localDb.subjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color })),
-          { onConflict: 'id' },
-        ), 'disciplinas');
-        if (res.error) throw new Error(`disciplinas: ${res.error.message}`);
-      }
-      if (localDb.classes.length > 0) {
-        const res = await fetchWithRetry(() => supabase.from('turmas').upsert(
-          localDb.classes.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade })),
-          { onConflict: 'id' },
-        ), 'turmas');
-        if (res.error) throw new Error(`turmas: ${res.error.message}`);
-      }
       const localSchedules = localDb.schedules.filter((s) => s.id !== REGULAR_SCHEDULE_ID);
-      if (localSchedules.length > 0) {
-        const res = await fetchWithRetry(() => supabase.from('versoes_horario').upsert(
-          localSchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false })),
-          { onConflict: 'id' },
-        ), 'versoes');
-        if (res.error) throw new Error(`versoes: ${res.error.message}`);
-      }
-      if (localDb.grid.length > 0) {
-        const res = await fetchWithRetry(() => supabase.from('grade_horaria').upsert(
-          localDb.grid.map((s) => ({
-            id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
-            professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId,
-            versao_id: s.scheduleId || REGULAR_SCHEDULE_ID,
-          })),
-          { onConflict: 'id' },
-        ), 'grade');
-        if (res.error) throw new Error(`grade: ${res.error.message}`);
-      }
-      if (localDb.occurrences.length > 0) {
-        const res = await fetchWithRetry(() => supabase.from('ocorrencias').upsert(
-          localDb.occurrences.map((o) => ({
-            id: o.id, data: o.weekday || '', bloco_horario: String(o.blockId),
-            tipo: o.type, professor_id: o.teacherId || 'sem-professor', motivo: o.note || '',
-          })),
-          { onConflict: 'id' },
-        ), 'ocorrencias');
-        if (res.error) throw new Error(`ocorrencias: ${res.error.message}`);
-      }
 
+      await cloudUpsert({
+        teachers: localDb.teachers.map((t) => ({ id: t.id, nome: t.name, email: t.email, telefone: t.phone })),
+        subjects: localDb.subjects.map((s) => ({ id: s.id, nome: s.name, cor: s.color })),
+        classes: localDb.classes.map((c) => ({ id: c.id, nome: c.name, ano_serie: c.grade })),
+        schedules: localSchedules.map((s) => ({ id: s.id, nome: s.name, is_regular: false })),
+        grid: localDb.grid.map((s) => ({
+          id: s.id, dia_semana: s.weekday, bloco_horario: String(s.blockId),
+          professor_id: s.teacherId, disciplina: s.subjectId, turma: s.classId,
+          versao_id: s.scheduleId || REGULAR_SCHEDULE_ID,
+        })),
+        occurrences: localDb.occurrences.map((o) => ({
+          id: o.id, data: o.weekday || '', bloco_horario: String(o.blockId),
+          tipo: o.type, professor_id: o.teacherId || 'sem-professor', motivo: o.note || '',
+        })),
+      });
+
+      const cloudData = await cloudFetchAll();
+      setDb({
+        ...cloudData,
+        emailLogs: localDb.emailLogs || [],
+      });
       setCloudSynced(true);
       setSyncError(null);
     } catch (err: any) {

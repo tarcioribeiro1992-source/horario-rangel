@@ -1,0 +1,5 @@
+[functions.sync-db]
+verify_jwt = false
+
+[functions.fetch-db]
+verify_jwt = false
